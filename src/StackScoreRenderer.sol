@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-import {LibString} from "solady/src/utils/LibString.sol";
+import {LibString} from "solady/utils/LibString.sol";
 
 contract StackScoreRenderer {
     bytes3[3][11] public palettes = [

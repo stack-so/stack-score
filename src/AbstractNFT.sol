@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-import {ERC721ConduitPreapproved_Solady, ERC721} from "../tokens/erc721/ERC721ConduitPreapproved_Solady.sol";
-import {json} from "../onchain/json.sol";
-import {svg} from "../onchain/svg.sol";
-import {LibString} from "solady/src/utils/LibString.sol";
+import {ERC721ConduitPreapproved_Solady, ERC721} from "./tokens/erc721/ERC721ConduitPreapproved_Solady.sol";
+import {json} from "./onchain/json.sol";
+import {Metadata} from "./onchain/Metadata.sol";
+import {LibString} from "solady/utils/LibString.sol";
 import {Solarray} from "solarray/Solarray.sol";
-import {Metadata} from "../onchain/Metadata.sol";
 
-import {OnchainTraits, DynamicTraits} from "../dynamic-traits/OnchainTraits.sol";
+import {OnchainTraits, DynamicTraits} from "./dynamic-traits/OnchainTraits.sol";
 
 abstract contract AbstractNFT is OnchainTraits, ERC721ConduitPreapproved_Solady {
     string _name;

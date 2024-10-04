@@ -2,8 +2,8 @@
 pragma solidity ^0.8.17;
 
 import "forge-std/Test.sol";
-import {StackScore} from "src/reference/StackScore.sol";
-import {StackScoreRenderer} from "src/reference/StackScoreRenderer.sol";
+import {StackScore} from "src/StackScore.sol";
+import {StackScoreRenderer} from "src/StackScoreRenderer.sol";
 
 import {
 TraitLabelStorage,
@@ -19,7 +19,7 @@ StoredTraitLabelLib,
 EditorsLib
 } from "src/dynamic-traits/lib/TraitLabelLib.sol";
 import {DisplayType} from "src/onchain/Metadata.sol";
-import {ECDSA} from "solady/src/utils/ECDSA.sol";
+import {ECDSA} from "solady/utils/ECDSA.sol";
 
 contract StackScoreTest is Test {
     StackScore token;

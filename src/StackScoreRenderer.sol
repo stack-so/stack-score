@@ -21,6 +21,11 @@ contract StackScoreRenderer {
     [bytes3(0x301C28), bytes3(0xCFA37F), bytes3(0xD7482C)]  // red
     ];
 
+    uint constant SECONDS_PER_DAY = 24 * 60 * 60;
+    uint constant SECONDS_PER_HOUR = 60 * 60;
+    uint constant SECONDS_PER_MINUTE = 60;
+    int constant OFFSET19700101 = 2440588;
+
     // Function to get a specific color from a palette
     function getColor(uint paletteIndex, uint colorIndex) public view returns (bytes3) {
         require(paletteIndex < palettes.length, "Palette index out of bounds");
@@ -32,6 +37,47 @@ contract StackScoreRenderer {
     function getColorAsHexString(uint paletteIndex, uint colorIndex) public view returns (string memory) {
         bytes3 color = getColor(paletteIndex, colorIndex);
         return LibString.toHexStringNoPrefix(uint24(color), 3); // 3 bytes for RGB
+    }
+
+    // From: https://github.com/bokkypoobah/BokkyPooBahsDateTimeLibrary/blob/master/contracts/BokkyPooBahsDateTimeLibrary.sol
+    function timestampToDateTime(uint timestamp) internal pure returns (uint year, uint month, uint day, uint hour, uint minute, uint second) {
+        (year, month, day) = _daysToDate(timestamp / SECONDS_PER_DAY);
+        uint secs = timestamp % SECONDS_PER_DAY;
+        hour = secs / SECONDS_PER_HOUR;
+        secs = secs % SECONDS_PER_HOUR;
+        minute = secs / SECONDS_PER_MINUTE;
+        second = secs % SECONDS_PER_MINUTE;
+    }
+
+    function _daysToDate(uint _days) internal pure returns (uint year, uint month, uint day) {
+        int __days = int(_days);
+
+        int L = __days + 68569 + OFFSET19700101;
+        int N = 4 * L / 146097;
+        L = L - (146097 * N + 3) / 4;
+        int _year = 4000 * (L + 1) / 1461001;
+        L = L - 1461 * _year / 4 + 31;
+        int _month = 80 * L / 2447;
+        int _day = L - 2447 * _month / 80;
+        L = _month / 11;
+        _month = _month + 2 - 12 * L;
+        _year = 100 * (N - 49) + _year + L;
+
+        year = uint(_year);
+        month = uint(_month);
+        day = uint(_day);
+    }
+
+    function getTimestampString(uint256 timestamp) public view returns (string memory) {
+        (uint year, uint month, uint day, uint hour, uint minute, uint second) = timestampToDateTime(timestamp);
+        return string(abi.encodePacked(
+            LibString.toString(year), "-",
+            LibString.toString(month), "-",
+            LibString.toString(day), " ",
+            LibString.toString(hour), ":",
+            LibString.toString(minute), ":",
+            LibString.toString(second)
+        ));
     }
 
     // Function to get an entire palette as an array of hex strings
@@ -71,9 +117,10 @@ contract StackScoreRenderer {
         ));
     }
 
-    function getSVG(uint256 tokenId, uint256 score, address account, uint256 paletteIndex) public view returns (string memory) {
-        // TODO: Get the last updated string.
-        string memory lastUpdatedString = "Last updated at ...";
+    function getSVG(uint256 tokenId, uint256 score, address account, uint256 paletteIndex, uint256 lastUpdated) public view returns (string memory) {
+        string memory lastUpdatedString = string(
+            abi.encodePacked("LAST UPDATED", getTimestampString(lastUpdated))
+        );
         string memory svg = string(
             abi.encodePacked(
                 '<svg xmlns="http://www.w3.org/2000/svg" width="405" height="540" fill="none" xmlns:v="https://vecta.io/nano">'

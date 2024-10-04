@@ -36,12 +36,14 @@ contract StackScore is AbstractNFT, IERC5192 {
     StackScoreRenderer public renderer;
     mapping(address => uint256) public addressToTokenId;
     mapping(bytes32 => bool) internal signatures;
+    // Token ID to last updated time.
+    mapping(uint256 => uint256) private _timeLastUpdated;
 
     // Errors
     error TokenLocked(uint256 tokenId);
 
     // Events
-    event ScoreUpdated(uint256 tokenId, uint256 score);
+    event ScoreUpdated(uint256 tokenId, uint256 oldScore, uint256 newScore);
     event Minted(address to, uint256 tokenId);
 
     // Constructor
@@ -109,7 +111,10 @@ contract StackScore is AbstractNFT, IERC5192 {
 
     function updateScore(uint256 tokenId, uint256 score, bytes memory signature) public {
         _verifyScoreSignature(ownerOf(tokenId), score, signature);
+        _timeLastUpdated[tokenId] = block.timestamp;
+        uint256 oldScore = uint256(getTraitValue(tokenId, "score"));
         this.setTrait(tokenId, "score", bytes32(score));
+        emit ScoreUpdated(tokenId, oldScore, score);
     }
 
     function updatePalette(uint256 tokenId, uint256 paletteIndex) public {
@@ -173,7 +178,7 @@ contract StackScore is AbstractNFT, IERC5192 {
         address account = ownerOf(tokenId);
         uint256 paletteIndex = uint256(getTraitValue(tokenId, "paletteIndex"));
         uint256 score = uint256(getTraitValue(tokenId, "score"));
-        return renderer.getSVG(tokenId, score, account, paletteIndex);
+        return renderer.getSVG(tokenId, score, account, paletteIndex, _timeLastUpdated[tokenId]);
     }
 
     function _isOwnerOrApproved(uint256 tokenId, address addr) internal view override returns (bool) {

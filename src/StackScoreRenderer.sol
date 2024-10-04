@@ -119,7 +119,7 @@ contract StackScoreRenderer {
 
     function getSVG(uint256 tokenId, uint256 score, address account, uint256 paletteIndex, uint256 lastUpdated) public view returns (string memory) {
         string memory lastUpdatedString = string(
-            abi.encodePacked("LAST UPDATED", getTimestampString(lastUpdated))
+            abi.encodePacked("LAST UPDATED ", getTimestampString(lastUpdated))
         );
         string memory svg = string(
             abi.encodePacked(

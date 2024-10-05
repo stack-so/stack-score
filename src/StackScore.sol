@@ -9,116 +9,162 @@ import {AbstractNFT} from "./AbstractNFT.sol";
 import {ECDSA} from "solady/utils/ECDSA.sol";
 import {TraitLib} from "src/dynamic-traits/lib/TraitLabelLib.sol";
 import {StackScoreRenderer} from "./StackScoreRenderer.sol";
+import {IERC5192} from "./interfaces/IERC5192.sol";
 
-interface IERC5192 {
-    /// @notice Emitted when the locking status is changed to locked.
-    /// @dev If a token is minted and the status is locked, this event should be emitted.
-    /// @param tokenId The identifier for a token.
-    event Locked(uint256 tokenId);
-
-    /// @notice Emitted when the locking status is changed to unlocked.
-    /// @dev If a token is minted and the status is unlocked, this event should be emitted.
-    /// @param tokenId The identifier for a token.
-    event Unlocked(uint256 tokenId);
-
-    /// @notice Returns the locking status of an Soulbound Token
-    /// @dev SBTs assigned to zero address are considered invalid, and queries
-    /// about them do throw.
-    /// @param tokenId The identifier for an SBT.
-    function locked(uint256 tokenId) external view returns (bool);
-}
-
+/// @title StackScore
+/// @notice A contract for minting and managing Stack Score NFTs.
 contract StackScore is AbstractNFT, IERC5192 {
-    uint256 currentId;
+    /// @notice The current token ID.
     string public version = "1";
+    /// @notice The signer address.
     address public signer;
+    /// @notice The mint fee.
     uint256 public mintFee = 0.001 ether;
-    StackScoreRenderer public renderer;
-    mapping(address => uint256) public addressToTokenId;
+    /// @notice Address to token ID mapping.
+    mapping(address => uint256) internal addressToTokenId;
+    /// @notice Signature to used mapping.
+    /// @dev This is used to prevent replay attacks.
     mapping(bytes32 => bool) internal signatures;
-    // Token ID to last updated time.
-    mapping(uint256 => uint256) private _timeLastUpdated;
+    /// @notice The current token ID.
+    uint256 internal _currentId;
+    /// @notice The renderer contract.
+    /// @dev This contract is used to render the SVG image.
+    StackScoreRenderer internal renderer;
 
-    // Errors
+    /// @notice Error thrown when the token is locked upon transfer.
     error TokenLocked(uint256 tokenId);
+    /// @notice Error thrown when the signature is invalid.
+    error InvalidSignature();
+    /// @notice Error thrown when the signature is already used.
+    error SignatureAlreadyUsed();
+    /// @notice Error thrown when the mint fee is insufficient.
+    error InsufficientFee();
+    /// @notice Error thrown when the sender is not the token owner.
+    error OnlyTokenOwner();
 
-    // Events
+    /// @notice Emitted when the score is updated.
     event ScoreUpdated(uint256 tokenId, uint256 oldScore, uint256 newScore);
+    /// @notice Emitted when a token is minted.
     event Minted(address to, uint256 tokenId);
+    /// @notice Emitted when the mint fee is updated.
+    event MintFeeUpdated(uint256 oldFee, uint256 newFee);
 
-    // Constructor
+    /// @notice Constructor
+    /// @dev Set the name and symbol of the token.
     constructor() AbstractNFT("Stack Score", "Stack_Score") {}
 
-    /**
-     * Mint functions
-        */
+    /// @notice Get the current token ID.
+    /// @return The current token ID.
+    function getCurrentId() public view returns (uint256) {
+        return _currentId;
+    }
+
+    /// @notice Get the renderer contract address.
+    /// @return The renderer contract address.
+    function getRenderer() public view returns (address) {
+        return address(renderer);
+    }
+
+    /// @notice Mint a new soulbound token.
+    /// @dev Mint a new token and lock it.
+    /// @param to The address to mint the token to.
+    /// @return The token ID.
     function mint(address to) payable public returns (uint256) {
-        require(msg.value >= mintFee, "Insufficient fee");
+        if (msg.value < mintFee) {
+            revert InsufficientFee();
+        }
         require(balanceOf(to) == 0, "Only one token per address");
 
         unchecked {
-            _mint(to, ++currentId);
+            _mint(to, ++_currentId);
         }
 
-        addressToTokenId[to] = currentId;
-        emit Minted(to, currentId);
-        emit Locked(currentId);
-        return currentId;
+        addressToTokenId[to] = _currentId;
+        emit Minted(to, _currentId);
+        emit Locked(_currentId);
+        return _currentId;
     }
 
+    /// @notice Mint a new soulbound token with a score.
+    /// @dev Mint a new token, lock it, and update the score.
+    /// @param to The address to mint the token to.
+    /// @param score The score to set.
+    /// @param signature The signature to verify.
+    /// @return The token ID.
     function mintWithScore(address to, uint256 score, bytes memory signature) payable public returns (uint256) {
         mint(to);
-        updateScore(currentId, score, signature);
-        return currentId;
+        updateScore(_currentId, score, signature);
+        return _currentId;
     }
 
+    /// @notice Mint a new soulbound token with a score and palette.
+    /// @dev Mint a new token, lock it, update the score, and update the palette.
+    /// @param to The address to mint the token to.
+    /// @param score The score to set.
+    /// @param palette The palette index to set.
+    /// @param signature The signature to verify.
+    /// @return The token ID.
     function mintWithScoreAndPalette(address to, uint256 score, uint256 palette, bytes memory signature) payable public returns (uint256) {
         require(msg.sender == to, "Only the recipient can call this function");
         mint(to);
-        updateScore(currentId, score, signature);
+        updateScore(_currentId, score, signature);
         // TODO: Update palette.
-        return currentId;
+        return _currentId;
     }
 
-    /**
-    * Getter functions
-    */
-
-    // The token is Soulbound according to the ERC-5192 standard.
-    function locked(uint256 tokenId) public view override returns (bool) {
+    /// @notice Check if a token is locked.
+    /// @dev The token is Soulbound according to the ERC-5192 standard.
+    /// @param tokenId The token ID to check.
+    function locked(uint256 tokenId) public pure override returns (bool) {
         return true;
     }
 
+    /// @notice Get the score for a given account.
+    /// @param account The account to get the score for.
+    /// @return The score.
     function getScore(address account) public returns (uint256) {
         return uint256(getTraitValue(addressToTokenId[account], "score"));
     }
 
-    /**
-    * Setter functions
-    */
-
+    /// @notice Set the renderer contract address.
+    /// @dev Only the owner can set the renderer contract address.
+    /// @param _renderer The renderer contract address.
     function setRenderer(address _renderer) public onlyOwner {
         renderer = StackScoreRenderer(_renderer);
     }
 
-    function setSigner(address _signer) public {
+    /// @notice Set the signer address.
+    /// @dev Only the owner can set the signer address.
+    /// @param _signer The signer address.
+    function setSigner(address _signer) public onlyOwner {
         signer = _signer;
     }
 
+    /// @notice Set the mint fee.
+    /// @dev Only the owner can set the mint fee.
     function setFee(uint256 fee) public onlyOwner {
         mintFee = fee;
     }
 
+    /// @notice Update the score for a given token ID.
+    /// @dev The score is signed by the signer for the account.
+    /// @param tokenId The token ID to update.
+    /// @param score The new score.
+    /// @param signature The signature to verify.
     function updateScore(uint256 tokenId, uint256 score, bytes memory signature) public {
         _verifyScoreSignature(ownerOf(tokenId), score, signature);
-        _timeLastUpdated[tokenId] = block.timestamp;
+        this.setTrait(tokenId, "updatedAt", bytes32(block.timestamp));
         uint256 oldScore = uint256(getTraitValue(tokenId, "score"));
         this.setTrait(tokenId, "score", bytes32(score));
         emit ScoreUpdated(tokenId, oldScore, score);
     }
 
+    /// @notice Update the palette index for a given token ID.
+    /// @param tokenId The token ID to update.
     function updatePalette(uint256 tokenId, uint256 paletteIndex) public {
-        require(msg.sender == ownerOf(tokenId), "Only owner can update palette"); // todo: better error.
+        if (msg.sender != ownerOf(tokenId)) {
+            revert OnlyTokenOwner();
+        }
         this.setTrait(tokenId, "paletteIndex", bytes32(paletteIndex));
     }
 
@@ -130,12 +176,17 @@ contract StackScore is AbstractNFT, IERC5192 {
     * Internal functions
     */
 
-    function _verifyScoreSignature(address account, uint256 score, bytes memory signature) internal returns (bool) {
-        require(!signatures[keccak256(signature)], "Signature already used");
+    function _verifyScoreSignature(address account, uint256 score, bytes memory signature) internal {
+        if (signatures[keccak256(signature)]) {
+            revert SignatureAlreadyUsed();
+        }
         signatures[keccak256(signature)] = true;
-        bytes32 messageHash = keccak256(abi.encodePacked(account, score));
-        bytes32 hash = ECDSA.toEthSignedMessageHash(messageHash);
-        return ECDSA.recover(hash, signature) == signer;
+        bytes32 hash = ECDSA.toEthSignedMessageHash(
+            keccak256(abi.encodePacked(account, score))
+        );
+        if (ECDSA.recover(hash, signature) != signer) {
+            revert InvalidSignature();
+        }
     }
 
     /**
@@ -178,9 +229,11 @@ contract StackScore is AbstractNFT, IERC5192 {
         address account = ownerOf(tokenId);
         uint256 paletteIndex = uint256(getTraitValue(tokenId, "paletteIndex"));
         uint256 score = uint256(getTraitValue(tokenId, "score"));
-        return renderer.getSVG(tokenId, score, account, paletteIndex, _timeLastUpdated[tokenId]);
+        uint256 updatedAt = uint256(getTraitValue(tokenId, "updatedAt"));
+        return renderer.getSVG(score, account, paletteIndex, updatedAt);
     }
 
+    /// @notice Check if the sender is the owner of the token or an approved operator.
     function _isOwnerOrApproved(uint256 tokenId, address addr) internal view override returns (bool) {
         return addr == ownerOf(tokenId);
     }

@@ -115,17 +115,6 @@ contract StackScoreTest is Test {
         token.transferFrom(account, address(2), 1);
     }
 
-    function testGetColorsFromRenderer() public {
-        // Loop through 3 palettes and log the colors:
-        for (uint256 i = 0; i < 3; i++) {
-            string[3] memory colors = renderer.getPaletteAsHexStrings(i);
-            console.log("palette ", i);
-            console.log(colors[0]);
-            console.log(colors[1]);
-            console.log(colors[2]);
-        }
-    }
-
     function signScore(address account, uint256 score) public returns (bytes memory) {
         bytes32 messageHash = keccak256(abi.encodePacked(account, score));
         bytes32 hash = ECDSA.toEthSignedMessageHash(messageHash);
@@ -134,11 +123,11 @@ contract StackScoreTest is Test {
         return signature;
     }
 
-    function testName() public {
+    function testName() public view {
         assertEq(token.name(), "Stack Score");
     }
 
-    function testSymbol() public {
+    function testSymbol() public view {
         assertEq(token.symbol(), "Stack_Score");
     }
 
@@ -166,5 +155,17 @@ contract StackScoreTest is Test {
             required: true
         });
         token.setTraitLabel(bytes32("paletteIndex"), paletteLabel);
+
+        vm.prank(signer);
+        TraitLabel memory updatedLabel = TraitLabel({
+            fullTraitKey: "updatedAt",
+            traitLabel: "UpdatedAt",
+            acceptableValues: new string[](0),
+            fullTraitValues: new FullTraitValue[](0),
+            displayType: DisplayType.Number,
+            editors: Editors.wrap(EditorsLib.toBitMap(AllowedEditor.Self)),
+            required: true
+        });
+        token.setTraitLabel(bytes32("updatedAt"), updatedLabel);
     }
 }

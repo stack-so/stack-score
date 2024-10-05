@@ -149,14 +149,14 @@ contract StackScore is AbstractNFT, IERC5192 {
     /// @notice Update the score for a given token ID.
     /// @dev The score is signed by the signer for the account.
     /// @param tokenId The token ID to update.
-    /// @param score The new score.
+    /// @param newScore The new score.
     /// @param signature The signature to verify.
-    function updateScore(uint256 tokenId, uint256 score, bytes memory signature) public {
-        _verifyScoreSignature(ownerOf(tokenId), score, signature);
+    function updateScore(uint256 tokenId, uint256 newScore, bytes memory signature) public {
+        _assertValidScoreSignature(ownerOf(tokenId), newScore, signature);
         this.setTrait(tokenId, "updatedAt", bytes32(block.timestamp));
         uint256 oldScore = uint256(getTraitValue(tokenId, "score"));
-        this.setTrait(tokenId, "score", bytes32(score));
-        emit ScoreUpdated(tokenId, oldScore, score);
+        this.setTrait(tokenId, "score", bytes32(newScore));
+        emit ScoreUpdated(tokenId, oldScore, newScore);
     }
 
     /// @notice Update the palette index for a given token ID.
@@ -172,11 +172,12 @@ contract StackScore is AbstractNFT, IERC5192 {
         return uint256(getTraitValue(tokenId, "paletteIndex"));
     }
 
-    /**
-    * Internal functions
-    */
-
-    function _verifyScoreSignature(address account, uint256 score, bytes memory signature) internal {
+    /// @notice Verify the signature for the score.
+    /// @dev The function throws an error if the signature is invalid, or has been used before.
+    /// @param account The account to verify the score for.
+    /// @param score The score to verify.
+    /// @param signature The signature to verify.
+    function _assertValidScoreSignature(address account, uint256 score, bytes memory signature) internal {
         if (signatures[keccak256(signature)]) {
             revert SignatureAlreadyUsed();
         }
@@ -189,10 +190,9 @@ contract StackScore is AbstractNFT, IERC5192 {
         }
     }
 
-    /**
-     * @notice Helper function to get the raw JSON metadata representing a given token ID
-     * @param tokenId The token ID to get URI for
-     */
+    /// @notice Get the URI for the trait metadata
+    /// @param tokenId The token ID to get URI for
+    /// @return The trait metadata URI.
     function _stringURI(uint256 tokenId) internal view override returns (string memory) {
         return json.objectOf(
             Solarray.strings(
@@ -204,16 +204,20 @@ contract StackScore is AbstractNFT, IERC5192 {
         );
     }
 
-    /**
-     * @notice Helper function to get the static attributes for a given token ID
-     * @param tokenId The token ID to get the static attributes for
-     */
+    /// @notice Helper function to get the static attributes for a given token ID
+    /// @dev The static attributes are the name and description.
+    /// @param tokenId The token ID to get the static attributes for
+    /// @return The static attributes.
     function _staticAttributes(uint256 tokenId) internal view virtual override returns (string[] memory) {
         return Solarray.strings(
             Metadata.attribute({traitType: "Score Version", value: version})
         );
     }
 
+    /// @notice Run checks before token transfers
+    /// @dev Only allow transfers from the zero address, since the token is soulbound.
+    /// @param from The address the token is being transferred from
+    /// @param tokenId The token ID
     function _beforeTokenTransfer(address from, address, uint256 tokenId) internal view override {
         // if the token is being transferred from an address
         if (from != address(0)) {
@@ -221,10 +225,10 @@ contract StackScore is AbstractNFT, IERC5192 {
         }
     }
 
-    /**
-     * @notice Helper function to get the raw SVG image for a given token ID
-     * @param tokenId The token ID to get the dynamic attributes for
-     */
+    /// @notice Helper function to get the raw SVG image for a given token ID
+    /// @dev The SVG image is rendered by the renderer contract.
+    /// @param tokenId The token ID to get the dynamic attributes for
+    /// @return The SVG image.
     function _image(uint256 tokenId) internal view virtual override returns (string memory) {
         address account = ownerOf(tokenId);
         uint256 paletteIndex = uint256(getTraitValue(tokenId, "paletteIndex"));
@@ -234,6 +238,9 @@ contract StackScore is AbstractNFT, IERC5192 {
     }
 
     /// @notice Check if the sender is the owner of the token or an approved operator.
+    /// @param tokenId The token ID to check.
+    /// @param addr The address to check.
+    /// @return True if the address is the owner or an approved operator.
     function _isOwnerOrApproved(uint256 tokenId, address addr) internal view override returns (bool) {
         return addr == ownerOf(tokenId);
     }

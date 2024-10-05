@@ -91,9 +91,9 @@ contract StackScore is AbstractNFT, IERC5192 {
     /// @param score The score to set.
     /// @param signature The signature to verify.
     /// @return The token ID.
-    function mintWithScore(address to, uint256 score, bytes memory signature) payable public returns (uint256) {
+    function mintWithScore(address to, uint256 score, uint256 timestamp, bytes memory signature) payable public returns (uint256) {
         mint(to);
-        updateScore(_currentId, score, signature);
+        updateScore(_currentId, score, timestamp, signature);
         return _currentId;
     }
 
@@ -104,10 +104,10 @@ contract StackScore is AbstractNFT, IERC5192 {
     /// @param palette The palette index to set.
     /// @param signature The signature to verify.
     /// @return The token ID.
-    function mintWithScoreAndPalette(address to, uint256 score, uint256 palette, bytes memory signature) payable public returns (uint256) {
+    function mintWithScoreAndPalette(address to, uint256 score, uint256 timestamp, uint256 palette, bytes memory signature) payable public returns (uint256) {
         require(msg.sender == to, "Only the recipient can call this function");
         mint(to);
-        updateScore(_currentId, score, signature);
+        updateScore(_currentId, score, timestamp, signature);
         // TODO: Update palette.
         return _currentId;
     }
@@ -151,8 +151,8 @@ contract StackScore is AbstractNFT, IERC5192 {
     /// @param tokenId The token ID to update.
     /// @param newScore The new score.
     /// @param signature The signature to verify.
-    function updateScore(uint256 tokenId, uint256 newScore, bytes memory signature) public {
-        _assertValidScoreSignature(ownerOf(tokenId), newScore, signature);
+    function updateScore(uint256 tokenId, uint256 newScore, uint256 timestamp, bytes memory signature) public {
+        _assertValidScoreSignature(ownerOf(tokenId), newScore, timestamp, signature);
         this.setTrait(tokenId, "updatedAt", bytes32(block.timestamp));
         uint256 oldScore = uint256(getTraitValue(tokenId, "score"));
         this.setTrait(tokenId, "score", bytes32(newScore));
@@ -177,13 +177,13 @@ contract StackScore is AbstractNFT, IERC5192 {
     /// @param account The account to verify the score for.
     /// @param score The score to verify.
     /// @param signature The signature to verify.
-    function _assertValidScoreSignature(address account, uint256 score, bytes memory signature) internal {
+    function _assertValidScoreSignature(address account, uint256 score, uint256 timestamp, bytes memory signature) internal {
         if (signatures[keccak256(signature)]) {
             revert SignatureAlreadyUsed();
         }
         signatures[keccak256(signature)] = true;
         bytes32 hash = ECDSA.toEthSignedMessageHash(
-            keccak256(abi.encodePacked(account, score))
+            keccak256(abi.encodePacked(account, score, timestamp))
         );
         if (ECDSA.recover(hash, signature) != signer) {
             revert InvalidSignature();

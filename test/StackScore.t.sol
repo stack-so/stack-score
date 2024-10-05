@@ -48,7 +48,7 @@ contract StackScoreTest is Test {
             acceptableValues: new string[](0),
             fullTraitValues: new FullTraitValue[](0),
             displayType: DisplayType.Number,
-            // Only the contract owner can set the trait label.
+        // Only the contract owner can set the trait label.
             editors: Editors.wrap(EditorsLib.toBitMap(AllowedEditor.Self)),
             required: true
         });
@@ -80,11 +80,12 @@ contract StackScoreTest is Test {
         address account = address(1);
         vm.deal(account, 1 ether);
         uint256 score = 245;
+        uint256 timestamp = block.timestamp;
         // Signature
-        bytes memory signature = signScore(account, score);
+        bytes memory signature = signScore(account, score, timestamp);
         // Mint
         vm.prank(account);
-        token.mintWithScore{value: 0.001 ether}(account, score, signature);
+        token.mintWithScore{value: 0.001 ether}(account, score, timestamp, signature);
         console.log(token.tokenURI(1));
 
         // Check the score.
@@ -104,19 +105,20 @@ contract StackScoreTest is Test {
         address account = address(1);
         vm.deal(account, 1 ether);
         uint256 score = 1001;
+        uint256 timestamp = block.timestamp;
         // Signature
-        bytes memory signature = signScore(account, score);
+        bytes memory signature = signScore(account, score, timestamp);
         // Mint
         vm.prank(account);
-        token.mintWithScore{value: 0.001 ether}(account, score, signature);
+        token.mintWithScore{value: 0.001 ether}(account, score, timestamp, signature);
         // Transfer
         vm.prank(account);
         vm.expectRevert();
         token.transferFrom(account, address(2), 1);
     }
 
-    function signScore(address account, uint256 score) public returns (bytes memory) {
-        bytes32 messageHash = keccak256(abi.encodePacked(account, score));
+    function signScore(address account, uint256 score, uint256 timestamp) public returns (bytes memory) {
+        bytes32 messageHash = keccak256(abi.encodePacked(account, score, timestamp));
         bytes32 hash = ECDSA.toEthSignedMessageHash(messageHash);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerPk, hash);
         bytes memory signature = abi.encodePacked(r, s, v);

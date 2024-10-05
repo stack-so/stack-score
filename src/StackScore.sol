@@ -41,6 +41,8 @@ contract StackScore is AbstractNFT, IERC5192 {
     error InsufficientFee();
     /// @notice Error thrown when the sender is not the token owner.
     error OnlyTokenOwner();
+    /// @notice Error thrown when the timestamp is too old.
+    error TimestampTooOld();
 
     /// @notice Emitted when the score is updated.
     event ScoreUpdated(uint256 tokenId, uint256 oldScore, uint256 newScore);
@@ -152,6 +154,7 @@ contract StackScore is AbstractNFT, IERC5192 {
     /// @param newScore The new score.
     /// @param signature The signature to verify.
     function updateScore(uint256 tokenId, uint256 newScore, uint256 timestamp, bytes memory signature) public {
+        _assertValidTimestamp(tokenId, timestamp);
         _assertValidScoreSignature(ownerOf(tokenId), newScore, timestamp, signature);
         this.setTrait(tokenId, "updatedAt", bytes32(block.timestamp));
         uint256 oldScore = uint256(getTraitValue(tokenId, "score"));
@@ -187,6 +190,14 @@ contract StackScore is AbstractNFT, IERC5192 {
         );
         if (ECDSA.recover(hash, signature) != signer) {
             revert InvalidSignature();
+        }
+    }
+
+    function _assertValidTimestamp(uint256 tokenId, uint256 timestamp) internal {
+        uint256 lastUpdatedAt = uint256(getTraitValue(tokenId, "updatedAt"));
+        // Ensure the score is newer than the last update.
+        if (lastUpdatedAt > timestamp) {
+            revert TimestampTooOld();
         }
     }
 

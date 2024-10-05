@@ -193,6 +193,10 @@ contract StackScore is AbstractNFT, IERC5192 {
         }
     }
 
+    /// @notice Verify the timestamp is not too old.
+    /// @dev The function throws an error if the timestamp is too old.
+    /// @param tokenId The token ID to verify the timestamp for.
+    /// @param timestamp The timestamp to verify.
     function _assertValidTimestamp(uint256 tokenId, uint256 timestamp) internal {
         uint256 lastUpdatedAt = uint256(getTraitValue(tokenId, "updatedAt"));
         // Ensure the score is newer than the last update.

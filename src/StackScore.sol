@@ -1,19 +1,23 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
+// External libraries
+import {LibString} from "solady/utils/LibString.sol";
+import {ReentrancyGuard} from "solady/utils/ReentrancyGuard.sol";
+import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
+import {ECDSA} from "solady/utils/ECDSA.sol";
+import {Solarray} from "solarray/Solarray.sol";
+// Internal imports
 import {json} from "./onchain/json.sol";
 import {Metadata, DisplayType} from "./onchain/Metadata.sol";
-import {LibString} from "solady/utils/LibString.sol";
-import {Solarray} from "solarray/Solarray.sol";
+import {TraitLib} from "./dynamic-traits/lib/TraitLabelLib.sol";
 import {AbstractNFT} from "./AbstractNFT.sol";
-import {ECDSA} from "solady/utils/ECDSA.sol";
-import {TraitLib} from "src/dynamic-traits/lib/TraitLabelLib.sol";
 import {StackScoreRenderer} from "./StackScoreRenderer.sol";
 import {IERC5192} from "./interfaces/IERC5192.sol";
 
 /// @title StackScore
 /// @notice A contract for minting and managing Stack Score NFTs.
-contract StackScore is AbstractNFT, IERC5192 {
+contract StackScore is AbstractNFT, IERC5192, ReentrancyGuard {
     /// @notice The current token ID.
     string public version = "1";
     /// @notice The signer address.
@@ -30,6 +34,9 @@ contract StackScore is AbstractNFT, IERC5192 {
     /// @notice The renderer contract.
     /// @dev This contract is used to render the SVG image.
     StackScoreRenderer internal renderer;
+    /// @notice The mint fee recipient.
+    /// @dev This address receives the mint fee.
+    address public mintFeeRecipient;
 
     /// @notice Error thrown when the token is locked upon transfer.
     error TokenLocked(uint256 tokenId);
@@ -50,6 +57,7 @@ contract StackScore is AbstractNFT, IERC5192 {
     event Minted(address to, uint256 tokenId);
     /// @notice Emitted when the mint fee is updated.
     event MintFeeUpdated(uint256 oldFee, uint256 newFee);
+    event MintFeeRecipientUpdated(address oldRecipient, address newRecipient);
 
     /// @notice Constructor
     /// @dev Set the name and symbol of the token.
@@ -71,11 +79,13 @@ contract StackScore is AbstractNFT, IERC5192 {
     /// @dev Mint a new token and lock it.
     /// @param to The address to mint the token to.
     /// @return The token ID.
-    function mint(address to) payable public returns (uint256) {
+    function mint(address to) payable public nonReentrant returns (uint256) {
         if (msg.value < mintFee) {
             revert InsufficientFee();
         }
         require(balanceOf(to) == 0, "Only one token per address");
+
+        SafeTransferLib.safeTransferETH(mintFeeRecipient, msg.value);
 
         unchecked {
             _mint(to, ++_currentId);
@@ -145,7 +155,15 @@ contract StackScore is AbstractNFT, IERC5192 {
     /// @notice Set the mint fee.
     /// @dev Only the owner can set the mint fee.
     function setFee(uint256 fee) public onlyOwner {
+        uint256 oldFee = mintFee;
         mintFee = fee;
+        emit MintFeeUpdated(oldFee, mintFee);
+    }
+
+    function setMintFeeRecipient(address _mintFeeRecipient) public onlyOwner {
+        address oldFeeRecipient = mintFeeRecipient;
+        mintFeeRecipient = _mintFeeRecipient;
+        emit MintFeeRecipientUpdated(oldFeeRecipient, mintFeeRecipient);
     }
 
     /// @notice Update the score for a given token ID.

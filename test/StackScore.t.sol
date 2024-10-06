@@ -7,6 +7,7 @@ import {StackScoreRenderer} from "src/StackScoreRenderer.sol";
 import {ECDSA} from "solady/utils/ECDSA.sol";
 import {TraitLabel, Editors, FullTraitValue, AllowedEditor, EditorsLib} from "src/dynamic-traits/lib/TraitLabelLib.sol";
 import {DisplayType} from "src/onchain/Metadata.sol";
+import {LibString} from "solady/utils/LibString.sol";
 
 contract StackScoreTest is Test {
     StackScore token;
@@ -17,6 +18,13 @@ contract StackScoreTest is Test {
     address public owner;
     address public user1;
     address public user2;
+    address public mintFeeRecipient;
+
+    event ScoreUpdated(uint256 tokenId, uint256 oldScore, uint256 newScore);
+    event Minted(address to, uint256 tokenId);
+    event MintFeeUpdated(uint256 oldFee, uint256 newFee);
+
+    error Unauthorized();
 
     function setUp() public {
         (address alice, uint256 alicePk) = makeAddrAndKey("alice");
@@ -25,11 +33,13 @@ contract StackScoreTest is Test {
         owner = address(this);
         user1 = address(0x1);
         user2 = address(0x2);
+        mintFeeRecipient = address(0x3);
 
         token = new StackScore();
         renderer = new StackScoreRenderer();
         token.setRenderer(address(renderer));
         token.setSigner(signer);
+        token.setMintFeeRecipient(mintFeeRecipient);
         token.transferOwnership(signer);
         _setLabel();
 
@@ -45,6 +55,7 @@ contract StackScoreTest is Test {
         assertEq(token.mintFee(), 0.001 ether);
         assertEq(token.getCurrentId(), 0);
         assertEq(token.getRenderer(), address(renderer));
+        assertEq(token.mintFeeRecipient(), mintFeeRecipient);
     }
 
     function testMint() public {
@@ -54,6 +65,20 @@ contract StackScoreTest is Test {
         assertEq(token.ownerOf(1), user1);
         assertEq(token.balanceOf(user1), 1);
         assertEq(token.getCurrentId(), 1);
+    }
+
+    function testMintEmitsEvent() public {
+        vm.prank(user1);
+        vm.expectEmit(true, true, false, true);
+        emit Minted(user1, 1);
+        token.mint{value: 0.001 ether}(user1);
+    }
+
+    function testMintFeeTransfer() public {
+        uint256 initialBalance = mintFeeRecipient.balance;
+        vm.prank(user1);
+        token.mint{value: 0.001 ether}(user1);
+        assertEq(mintFeeRecipient.balance, initialBalance + 0.001 ether);
     }
 
     function testMintWithInsufficientFee() public {
@@ -97,7 +122,6 @@ contract StackScoreTest is Test {
     }
 
     function testUpdateScore() public {
-        // Mint a token first
         vm.prank(user1);
         uint256 tokenId = token.mint{value: 0.001 ether}(user1);
 
@@ -106,13 +130,14 @@ contract StackScoreTest is Test {
         bytes memory signature = signScore(user1, newScore, timestamp);
 
         vm.prank(user1);
+        vm.expectEmit(true, true, true, true);
+        emit ScoreUpdated(tokenId, 0, newScore);
         token.updateScore(tokenId, newScore, timestamp, signature);
 
         assertEq(token.getScore(user1), newScore);
     }
 
     function testUpdateScoreWithInvalidSignature() public {
-        // Mint a token first
         vm.prank(user1);
         uint256 tokenId = token.mint{value: 0.001 ether}(user1);
 
@@ -126,7 +151,6 @@ contract StackScoreTest is Test {
     }
 
     function testUpdateScoreWithOldTimestamp() public {
-        // Mint a token first
         vm.prank(user1);
         uint256 tokenId = token.mint{value: 0.001 ether}(user1);
 
@@ -147,7 +171,6 @@ contract StackScoreTest is Test {
     }
 
     function testUpdatePalette() public {
-        // Mint a token first
         vm.prank(user1);
         uint256 tokenId = token.mint{value: 0.001 ether}(user1);
 
@@ -159,7 +182,6 @@ contract StackScoreTest is Test {
     }
 
     function testUpdatePaletteOnlyOwner() public {
-        // Mint a token first
         vm.prank(user1);
         uint256 tokenId = token.mint{value: 0.001 ether}(user1);
 
@@ -170,7 +192,6 @@ contract StackScoreTest is Test {
     }
 
     function testSoulbound() public {
-        // Mint a token first
         vm.prank(user1);
         uint256 tokenId = token.mint{value: 0.001 ether}(user1);
 
@@ -186,7 +207,7 @@ contract StackScoreTest is Test {
         assertEq(token.getRenderer(), newRenderer);
 
         vm.prank(user1);
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector));
         token.setRenderer(address(0x456));
     }
 
@@ -197,19 +218,32 @@ contract StackScoreTest is Test {
         assertEq(token.signer(), newSigner);
 
         vm.prank(user1);
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector));
         token.setSigner(address(0x456));
     }
 
     function testSetFeeOnlyOwner() public {
         uint256 newFee = 0.002 ether;
         vm.prank(signer);
+        vm.expectEmit(true, true, false, true);
+        emit StackScore.MintFeeUpdated(0.001 ether, newFee);
         token.setFee(newFee);
         assertEq(token.mintFee(), newFee);
 
         vm.prank(user1);
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector));
         token.setFee(0.003 ether);
+    }
+
+    function testSetMintFeeRecipientOnlyOwner() public {
+        address newRecipient = address(0x123);
+        vm.prank(signer);
+        token.setMintFeeRecipient(newRecipient);
+        assertEq(token.mintFeeRecipient(), newRecipient);
+
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector));
+        token.setMintFeeRecipient(address(0x456));
     }
 
     function testTokenURI() public {
@@ -218,7 +252,17 @@ contract StackScoreTest is Test {
 
         string memory uri = token.tokenURI(tokenId);
         assertTrue(bytes(uri).length > 0);
-        // You might want to add more specific checks on the URI content
+
+        console.log("URI: ", uri);
+        assertTrue(LibString.startsWith(uri, "{\"name\":\"Stack Score\""));
+        assertTrue(LibString.contains(uri, "data:image/svg+xml;base64,"));
+    }
+
+    function testLocked() public {
+        vm.prank(user1);
+        uint256 tokenId = token.mint{value: 0.001 ether}(user1);
+
+        assertTrue(token.locked(tokenId));
     }
 
     // Helper functions

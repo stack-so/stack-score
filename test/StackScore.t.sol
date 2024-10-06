@@ -10,22 +10,31 @@ import {DisplayType} from "src/onchain/Metadata.sol";
 import {LibString} from "solady/utils/LibString.sol";
 
 contract StackScoreTest is Test {
+    /// @notice StackScore token contract.
     StackScore token;
+    /// @notice StackScoreRenderer contract.
     StackScoreRenderer renderer;
 
+    /// @notice Address of the public key signer.
     address public signer;
+    /// @notice Public key of the signer.
     uint256 public signerPk;
+    /// @notice Address of the owner.
     address public owner;
+    /// @notice Address of test user 1.
     address public user1;
+    /// @notice Address of test user 2.
     address public user2;
+    /// @notice Address of the mint fee recipient.
     address public mintFeeRecipient;
 
-    event ScoreUpdated(uint256 tokenId, uint256 oldScore, uint256 newScore);
-    event Minted(address to, uint256 tokenId);
-    event MintFeeUpdated(uint256 oldFee, uint256 newFee);
-
+    /// @notice Unauthorized error
+    /// @dev This error is thrown when a user is not authorized to perform an action.
     error Unauthorized();
 
+    /// @notice Test setup function.
+    /// @dev This function is called before each test.
+    /// @dev It initializes the token contract and sets up the test environment.
     function setUp() public {
         (address alice, uint256 alicePk) = makeAddrAndKey("alice");
         signer = alice;
@@ -70,7 +79,7 @@ contract StackScoreTest is Test {
     function testMintEmitsEvent() public {
         vm.prank(user1);
         vm.expectEmit(true, true, false, true);
-        emit Minted(user1, 1);
+        emit StackScore.Minted(user1, 1);
         token.mint{value: 0.001 ether}(user1);
     }
 
@@ -131,7 +140,7 @@ contract StackScoreTest is Test {
 
         vm.prank(user1);
         vm.expectEmit(true, true, true, true);
-        emit ScoreUpdated(tokenId, 0, newScore);
+        emit StackScore.ScoreUpdated(tokenId, 0, newScore);
         token.updateScore(tokenId, newScore, timestamp, signature);
 
         assertEq(token.getScore(user1), newScore);

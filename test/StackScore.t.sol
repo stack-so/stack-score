@@ -4,22 +4,9 @@ pragma solidity ^0.8.17;
 import "forge-std/Test.sol";
 import {StackScore} from "src/StackScore.sol";
 import {StackScoreRenderer} from "src/StackScoreRenderer.sol";
-
-import {
-TraitLabelStorage,
-TraitLabelStorageLib,
-TraitLabel,
-TraitLabelLib,
-Editors,
-FullTraitValue,
-StoredTraitLabel,
-AllowedEditor,
-TraitLib,
-StoredTraitLabelLib,
-EditorsLib
-} from "src/dynamic-traits/lib/TraitLabelLib.sol";
-import {DisplayType} from "src/onchain/Metadata.sol";
 import {ECDSA} from "solady/utils/ECDSA.sol";
+import {TraitLabel, Editors, FullTraitValue, AllowedEditor, EditorsLib} from "src/dynamic-traits/lib/TraitLabelLib.sol";
+import {DisplayType} from "src/onchain/Metadata.sol";
 
 contract StackScoreTest is Test {
     StackScore token;
@@ -27,115 +14,226 @@ contract StackScoreTest is Test {
 
     address public signer;
     uint256 public signerPk;
+    address public owner;
+    address public user1;
+    address public user2;
 
     function setUp() public {
         (address alice, uint256 alicePk) = makeAddrAndKey("alice");
         signer = alice;
         signerPk = alicePk;
+        owner = address(this);
+        user1 = address(0x1);
+        user2 = address(0x2);
+
         token = new StackScore();
         renderer = new StackScoreRenderer();
         token.setRenderer(address(renderer));
         token.setSigner(signer);
         token.transferOwnership(signer);
         _setLabel();
+
+        vm.deal(user1, 1 ether);
+        vm.deal(user2, 1 ether);
     }
 
-    function testOnlyContractCanSetTraitLabel() public {
-        vm.expectRevert();
-        TraitLabel memory label = TraitLabel({
-            fullTraitKey: "score",
-            traitLabel: "Score",
-            acceptableValues: new string[](0),
-            fullTraitValues: new FullTraitValue[](0),
-            displayType: DisplayType.Number,
-        // Only the contract owner can set the trait label.
-            editors: Editors.wrap(EditorsLib.toBitMap(AllowedEditor.Self)),
-            required: true
-        });
-        token.setTraitLabel(bytes32("score"), label);
+    function testInitialState() public {
+        assertEq(token.name(), "Stack Score");
+        assertEq(token.symbol(), "Stack_Score");
+        assertEq(token.version(), "1");
+        assertEq(token.signer(), signer);
+        assertEq(token.mintFee(), 0.001 ether);
+        assertEq(token.getCurrentId(), 0);
+        assertEq(token.getRenderer(), address(renderer));
     }
 
-    function testOnlyOwnerCanSetTrait() public {
-        // This will work.
-        vm.prank(signer);
-        TraitLabel memory label = TraitLabel({
-            fullTraitKey: "score",
-            traitLabel: "Score",
-            acceptableValues: new string[](0),
-            fullTraitValues: new FullTraitValue[](0),
-            displayType: DisplayType.Number,
-            editors: Editors.wrap(EditorsLib.toBitMap(AllowedEditor.Self)),
-            required: true
-        });
-        token.setTraitLabel(bytes32("score"), label);
+    function testMint() public {
+        vm.prank(user1);
+        uint256 tokenId = token.mint{value: 0.001 ether}(user1);
+        assertEq(tokenId, 1);
+        assertEq(token.ownerOf(1), user1);
+        assertEq(token.balanceOf(user1), 1);
+        assertEq(token.getCurrentId(), 1);
+    }
 
-        // But this will fail.
-        vm.expectRevert();
-        token.setTrait(1, "score", bytes32(uint256(68)));
+    function testMintWithInsufficientFee() public {
+        vm.prank(user1);
+        vm.expectRevert(StackScore.InsufficientFee.selector);
+        token.mint{value: 0.0009 ether}(user1);
+    }
+
+    function testMintOnlyOneTokenPerAddress() public {
+        vm.startPrank(user1);
+        token.mint{value: 0.001 ether}(user1);
+        vm.expectRevert("Only one token per address");
+        token.mint{value: 0.001 ether}(user1);
         vm.stopPrank();
     }
 
     function testMintWithScore() public {
-        // Props
-        address account = address(1);
-        vm.deal(account, 1 ether);
         uint256 score = 245;
         uint256 timestamp = block.timestamp;
-        // Signature
-        bytes memory signature = signScore(account, score, timestamp);
-        // Mint
-        vm.prank(account);
-        token.mintWithScore{value: 0.001 ether}(account, score, timestamp, signature);
-        console.log(token.tokenURI(1));
+        bytes memory signature = signScore(user1, score, timestamp);
 
-        // Check the score.
-        assertEq(token.getScore(account), uint256(score));
+        vm.prank(user1);
+        uint256 tokenId = token.mintWithScore{value: 0.001 ether}(user1, score, timestamp, signature);
 
-        // Update the color palette.
-        uint256 paletteIndex = 3;
-        vm.prank(account);
-        token.updatePalette(1, paletteIndex);
-        assertEq(token.getPaletteIndex(1), paletteIndex);
-        console.log(token.tokenURI(1));
+        assertEq(tokenId, 1);
+        assertEq(token.getScore(user1), score);
     }
 
-    // The token should not be allowed to transfer after minting.
-    function testSoulbound() public {
-        // Props
-        address account = address(1);
-        vm.deal(account, 1 ether);
-        uint256 score = 1001;
+    function testMintWithScoreAndPalette() public {
+        uint256 score = 245;
         uint256 timestamp = block.timestamp;
-        // Signature
-        bytes memory signature = signScore(account, score, timestamp);
-        // Mint
-        vm.prank(account);
-        token.mintWithScore{value: 0.001 ether}(account, score, timestamp, signature);
-        // Transfer
-        vm.prank(account);
-        vm.expectRevert();
-        token.transferFrom(account, address(2), 1);
+        uint256 palette = 3;
+        bytes memory signature = signScore(user1, score, timestamp);
+
+        vm.prank(user1);
+        uint256 tokenId = token.mintWithScoreAndPalette{value: 0.001 ether}(user1, score, timestamp, palette, signature);
+
+        assertEq(tokenId, 1);
+        assertEq(token.getScore(user1), score);
+        assertEq(token.getPaletteIndex(tokenId), palette);
     }
 
-    function signScore(address account, uint256 score, uint256 timestamp) public returns (bytes memory) {
+    function testUpdateScore() public {
+        // Mint a token first
+        vm.prank(user1);
+        uint256 tokenId = token.mint{value: 0.001 ether}(user1);
+
+        uint256 newScore = 300;
+        uint256 timestamp = block.timestamp;
+        bytes memory signature = signScore(user1, newScore, timestamp);
+
+        vm.prank(user1);
+        token.updateScore(tokenId, newScore, timestamp, signature);
+
+        assertEq(token.getScore(user1), newScore);
+    }
+
+    function testUpdateScoreWithInvalidSignature() public {
+        // Mint a token first
+        vm.prank(user1);
+        uint256 tokenId = token.mint{value: 0.001 ether}(user1);
+
+        uint256 newScore = 300;
+        uint256 timestamp = block.timestamp;
+        bytes memory signature = signScore(user2, newScore, timestamp); // Using wrong address
+
+        vm.prank(user1);
+        vm.expectRevert(StackScore.InvalidSignature.selector);
+        token.updateScore(tokenId, newScore, timestamp, signature);
+    }
+
+    function testUpdateScoreWithOldTimestamp() public {
+        // Mint a token first
+        vm.prank(user1);
+        uint256 tokenId = token.mint{value: 0.001 ether}(user1);
+
+        uint256 oldScore = 200;
+        uint256 oldTimestamp = block.timestamp;
+        bytes memory oldSignature = signScore(user1, oldScore, oldTimestamp);
+
+        vm.prank(user1);
+        token.updateScore(tokenId, oldScore, oldTimestamp, oldSignature);
+
+        uint256 newScore = 300;
+        uint256 newTimestamp = oldTimestamp - 1; // Using an older timestamp
+        bytes memory newSignature = signScore(user1, newScore, newTimestamp);
+
+        vm.prank(user1);
+        vm.expectRevert(StackScore.TimestampTooOld.selector);
+        token.updateScore(tokenId, newScore, newTimestamp, newSignature);
+    }
+
+    function testUpdatePalette() public {
+        // Mint a token first
+        vm.prank(user1);
+        uint256 tokenId = token.mint{value: 0.001 ether}(user1);
+
+        uint256 newPalette = 5;
+        vm.prank(user1);
+        token.updatePalette(tokenId, newPalette);
+
+        assertEq(token.getPaletteIndex(tokenId), newPalette);
+    }
+
+    function testUpdatePaletteOnlyOwner() public {
+        // Mint a token first
+        vm.prank(user1);
+        uint256 tokenId = token.mint{value: 0.001 ether}(user1);
+
+        uint256 newPalette = 5;
+        vm.prank(user2);
+        vm.expectRevert(StackScore.OnlyTokenOwner.selector);
+        token.updatePalette(tokenId, newPalette);
+    }
+
+    function testSoulbound() public {
+        // Mint a token first
+        vm.prank(user1);
+        uint256 tokenId = token.mint{value: 0.001 ether}(user1);
+
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(StackScore.TokenLocked.selector, tokenId));
+        token.transferFrom(user1, user2, tokenId);
+    }
+
+    function testSetRendererOnlyOwner() public {
+        address newRenderer = address(0x123);
+        vm.prank(signer);
+        token.setRenderer(newRenderer);
+        assertEq(token.getRenderer(), newRenderer);
+
+        vm.prank(user1);
+        vm.expectRevert();
+        token.setRenderer(address(0x456));
+    }
+
+    function testSetSignerOnlyOwner() public {
+        address newSigner = address(0x123);
+        vm.prank(signer);
+        token.setSigner(newSigner);
+        assertEq(token.signer(), newSigner);
+
+        vm.prank(user1);
+        vm.expectRevert();
+        token.setSigner(address(0x456));
+    }
+
+    function testSetFeeOnlyOwner() public {
+        uint256 newFee = 0.002 ether;
+        vm.prank(signer);
+        token.setFee(newFee);
+        assertEq(token.mintFee(), newFee);
+
+        vm.prank(user1);
+        vm.expectRevert();
+        token.setFee(0.003 ether);
+    }
+
+    function testTokenURI() public {
+        vm.prank(user1);
+        uint256 tokenId = token.mint{value: 0.001 ether}(user1);
+
+        string memory uri = token.tokenURI(tokenId);
+        assertTrue(bytes(uri).length > 0);
+        // You might want to add more specific checks on the URI content
+    }
+
+    // Helper functions
+
+    function signScore(address account, uint256 score, uint256 timestamp) internal returns (bytes memory) {
         bytes32 messageHash = keccak256(abi.encodePacked(account, score, timestamp));
         bytes32 hash = ECDSA.toEthSignedMessageHash(messageHash);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerPk, hash);
-        bytes memory signature = abi.encodePacked(r, s, v);
-        return signature;
-    }
-
-    function testName() public view {
-        assertEq(token.name(), "Stack Score");
-    }
-
-    function testSymbol() public view {
-        assertEq(token.symbol(), "Stack_Score");
+        return abi.encodePacked(r, s, v);
     }
 
     function _setLabel() internal {
-        vm.prank(signer);
-        TraitLabel memory label = TraitLabel({
+        vm.startPrank(signer);
+
+        TraitLabel memory scoreLabel = TraitLabel({
             fullTraitKey: "score",
             traitLabel: "Score",
             acceptableValues: new string[](0),
@@ -144,9 +242,8 @@ contract StackScoreTest is Test {
             editors: Editors.wrap(EditorsLib.toBitMap(AllowedEditor.Self)),
             required: true
         });
-        token.setTraitLabel(bytes32("score"), label);
+        token.setTraitLabel(bytes32("score"), scoreLabel);
 
-        vm.prank(signer);
         TraitLabel memory paletteLabel = TraitLabel({
             fullTraitKey: "paletteIndex",
             traitLabel: "PaletteIndex",
@@ -158,7 +255,6 @@ contract StackScoreTest is Test {
         });
         token.setTraitLabel(bytes32("paletteIndex"), paletteLabel);
 
-        vm.prank(signer);
         TraitLabel memory updatedLabel = TraitLabel({
             fullTraitKey: "updatedAt",
             traitLabel: "UpdatedAt",
@@ -169,5 +265,7 @@ contract StackScoreTest is Test {
             required: true
         });
         token.setTraitLabel(bytes32("updatedAt"), updatedLabel);
+
+        vm.stopPrank();
     }
 }

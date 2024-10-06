@@ -110,7 +110,7 @@ contract StackScore is AbstractNFT, IERC5192 {
         require(msg.sender == to, "Only the recipient can call this function");
         mint(to);
         updateScore(_currentId, score, timestamp, signature);
-        // TODO: Update palette.
+        updatePalette(_currentId, palette);
         return _currentId;
     }
 

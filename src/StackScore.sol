@@ -38,6 +38,14 @@ contract StackScore is AbstractNFT, IERC5192, ReentrancyGuard {
     /// @dev This address receives the mint fee.
     address public mintFeeRecipient;
 
+    /// @notice Emitted when the score is updated.
+    event ScoreUpdated(uint256 tokenId, uint256 oldScore, uint256 newScore);
+    /// @notice Emitted when a token is minted.
+    event Minted(address to, uint256 tokenId);
+    /// @notice Emitted when the mint fee is updated.
+    event MintFeeUpdated(uint256 oldFee, uint256 newFee);
+    event MintFeeRecipientUpdated(address oldRecipient, address newRecipient);
+
     /// @notice Error thrown when the token is locked upon transfer.
     error TokenLocked(uint256 tokenId);
     /// @notice Error thrown when the signature is invalid.
@@ -53,30 +61,10 @@ contract StackScore is AbstractNFT, IERC5192, ReentrancyGuard {
     /// @notice Error thrown if mint called for the second time for the same address.
     error OneTokenPerAddress();
 
-    /// @notice Emitted when the score is updated.
-    event ScoreUpdated(uint256 tokenId, uint256 oldScore, uint256 newScore);
-    /// @notice Emitted when a token is minted.
-    event Minted(address to, uint256 tokenId);
-    /// @notice Emitted when the mint fee is updated.
-    event MintFeeUpdated(uint256 oldFee, uint256 newFee);
-    event MintFeeRecipientUpdated(address oldRecipient, address newRecipient);
-
     /// @notice Constructor
     /// @dev Set the name and symbol of the token.
     constructor(address initialOwner) AbstractNFT("Stack Score", "Stack_Score") {
         _initializeOwner(initialOwner);
-    }
-
-    /// @notice Get the current token ID.
-    /// @return The current token ID.
-    function getCurrentId() public view returns (uint256) {
-        return _currentId;
-    }
-
-    /// @notice Get the renderer contract address.
-    /// @return The renderer contract address.
-    function getRenderer() public view returns (address) {
-        return address(renderer);
     }
 
     /// @notice Mint a new soulbound token.
@@ -131,6 +119,29 @@ contract StackScore is AbstractNFT, IERC5192, ReentrancyGuard {
         return _currentId;
     }
 
+    /// @notice Update the score for a given token ID.
+    /// @dev The score is signed by the signer for the account.
+    /// @param tokenId The token ID to update.
+    /// @param newScore The new score.
+    /// @param signature The signature to verify.
+    function updateScore(uint256 tokenId, uint256 newScore, uint256 timestamp, bytes memory signature) public {
+        _assertValidTimestamp(tokenId, timestamp);
+        _assertValidScoreSignature(ownerOf(tokenId), newScore, timestamp, signature);
+        this.setTrait(tokenId, "updatedAt", bytes32(block.timestamp));
+        uint256 oldScore = uint256(getTraitValue(tokenId, "score"));
+        this.setTrait(tokenId, "score", bytes32(newScore));
+        emit ScoreUpdated(tokenId, oldScore, newScore);
+    }
+
+    /// @notice Update the palette index for a given token ID.
+    /// @dev The palette index is the index of the palette to use for rendering.
+    /// @dev Only the owner can update the palette index.
+    /// @param tokenId The token ID to update.
+    function updatePalette(uint256 tokenId, uint256 paletteIndex) public {
+        _assertTokenOwner(tokenId);
+        this.setTrait(tokenId, "paletteIndex", bytes32(paletteIndex));
+    }
+
     /// @notice Check if a token is locked.
     /// @dev The token is Soulbound according to the ERC-5192 standard.
     /// @param tokenId The token ID to check.
@@ -143,6 +154,25 @@ contract StackScore is AbstractNFT, IERC5192, ReentrancyGuard {
     /// @return The score.
     function getScore(address account) public view returns (uint256) {
         return uint256(getTraitValue(addressToTokenId[account], "score"));
+    }
+
+    /// @notice Get the palette index for a given token ID.
+    /// @param tokenId The token ID to get the palette index for.
+    /// @return The palette index.
+    function getPaletteIndex(uint256 tokenId) public view returns (uint256) {
+        return uint256(getTraitValue(tokenId, "paletteIndex"));
+    }
+
+    /// @notice Get the current token ID.
+    /// @return The current token ID.
+    function getCurrentId() public view returns (uint256) {
+        return _currentId;
+    }
+
+    /// @notice Get the renderer contract address.
+    /// @return The renderer contract address.
+    function getRenderer() public view returns (address) {
+        return address(renderer);
     }
 
     /// @notice Set the renderer contract address.
@@ -161,43 +191,19 @@ contract StackScore is AbstractNFT, IERC5192, ReentrancyGuard {
 
     /// @notice Set the mint fee.
     /// @dev Only the owner can set the mint fee.
-    function setFee(uint256 fee) public onlyOwner {
+    function setMintFee(uint256 fee) public onlyOwner {
         uint256 oldFee = mintFee;
         mintFee = fee;
         emit MintFeeUpdated(oldFee, mintFee);
     }
 
+    /// @notice Set the mint fee recipient.
+    /// @dev Only the owner can set the mint fee recipient.
+    /// @param _mintFeeRecipient The mint fee recipient address.
     function setMintFeeRecipient(address _mintFeeRecipient) public onlyOwner {
         address oldFeeRecipient = mintFeeRecipient;
         mintFeeRecipient = _mintFeeRecipient;
         emit MintFeeRecipientUpdated(oldFeeRecipient, mintFeeRecipient);
-    }
-
-    /// @notice Update the score for a given token ID.
-    /// @dev The score is signed by the signer for the account.
-    /// @param tokenId The token ID to update.
-    /// @param newScore The new score.
-    /// @param signature The signature to verify.
-    function updateScore(uint256 tokenId, uint256 newScore, uint256 timestamp, bytes memory signature) public {
-        _assertValidTimestamp(tokenId, timestamp);
-        _assertValidScoreSignature(ownerOf(tokenId), newScore, timestamp, signature);
-        this.setTrait(tokenId, "updatedAt", bytes32(block.timestamp));
-        uint256 oldScore = uint256(getTraitValue(tokenId, "score"));
-        this.setTrait(tokenId, "score", bytes32(newScore));
-        emit ScoreUpdated(tokenId, oldScore, newScore);
-    }
-
-    /// @notice Update the palette index for a given token ID.
-    /// @param tokenId The token ID to update.
-    function updatePalette(uint256 tokenId, uint256 paletteIndex) public {
-        if (msg.sender != ownerOf(tokenId)) {
-            revert OnlyTokenOwner();
-        }
-        this.setTrait(tokenId, "paletteIndex", bytes32(paletteIndex));
-    }
-
-    function getPaletteIndex(uint256 tokenId) public view returns (uint256) {
-        return uint256(getTraitValue(tokenId, "paletteIndex"));
     }
 
     /// @notice Verify the signature for the score.
@@ -215,6 +221,15 @@ contract StackScore is AbstractNFT, IERC5192, ReentrancyGuard {
         );
         if (ECDSA.recover(hash, signature) != signer) {
             revert InvalidSignature();
+        }
+    }
+
+    /// @notice Verify the sender is the owner of the token.
+    /// @dev The function throws an error if the sender is not the owner of the token.
+    /// @param tokenId The token ID to verify the owner for.
+    function _assertTokenOwner(uint256 tokenId) internal view {
+        if (msg.sender != ownerOf(tokenId)) {
+            revert OnlyTokenOwner();
         }
     }
 

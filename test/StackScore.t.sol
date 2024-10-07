@@ -231,17 +231,17 @@ contract StackScoreTest is Test {
         token.setSigner(address(0x456));
     }
 
-    function testSetFeeOnlyOwner() public {
+    function testSetMintFeeOnlyOwner() public {
         uint256 newFee = 0.002 ether;
         vm.prank(signer);
         vm.expectEmit(true, true, false, true);
         emit StackScore.MintFeeUpdated(0.001 ether, newFee);
-        token.setFee(newFee);
+        token.setMintFee(newFee);
         assertEq(token.mintFee(), newFee);
 
         vm.prank(user1);
         vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector));
-        token.setFee(0.003 ether);
+        token.setMintFee(0.003 ether);
     }
 
     function testSetMintFeeRecipientOnlyOwner() public {

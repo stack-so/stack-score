@@ -24,6 +24,9 @@ contract StackScore is AbstractNFT, IERC5192, ReentrancyGuard {
     address public signer;
     /// @notice The mint fee.
     uint256 public mintFee = 0.001 ether;
+    /// @notice The referral fee.
+    /// @dev This is a percentage of the mint fee, in basis points (100 basis points is 1%).
+    uint256 public referralBps = 50;
     /// @notice Address to token ID mapping.
     mapping(address => uint256) internal addressToTokenId;
     /// @notice Signature to used mapping.
@@ -76,19 +79,9 @@ contract StackScore is AbstractNFT, IERC5192, ReentrancyGuard {
             revert InsufficientFee();
         }
 
-        if (balanceOf(to) > 0) {
-            revert OneTokenPerAddress();
-        }
-
         SafeTransferLib.safeTransferETH(mintFeeRecipient, msg.value);
+        _mintTo(to);
 
-        unchecked {
-            _mint(to, ++_currentId);
-        }
-
-        addressToTokenId[to] = _currentId;
-        emit Minted(to, _currentId);
-        emit Locked(_currentId);
         return _currentId;
     }
 
@@ -204,6 +197,28 @@ contract StackScore is AbstractNFT, IERC5192, ReentrancyGuard {
         address oldFeeRecipient = mintFeeRecipient;
         mintFeeRecipient = _mintFeeRecipient;
         emit MintFeeRecipientUpdated(oldFeeRecipient, mintFeeRecipient);
+    }
+
+    function _assertOneTokenPerAddress(address to) internal view {
+        if (balanceOf(to) > 0) {
+            revert OneTokenPerAddress();
+        }
+    }
+
+    /// @notice Mint a new soulbound token.
+    /// @dev Mint a new token, lock it.
+    /// @param to The address to mint the token to.
+    function _mintTo(address to) internal {
+        _assertOneTokenPerAddress(to);
+
+        unchecked {
+            _mint(to, ++_currentId);
+        }
+
+        addressToTokenId[to] = _currentId;
+
+        emit Minted(to, _currentId);
+        emit Locked(_currentId);
     }
 
     /// @notice Verify the signature for the score.

@@ -274,6 +274,180 @@ contract StackScoreTest is Test {
         assertTrue(token.locked(tokenId));
     }
 
+    function testMintWithReferral() public {
+        address referrer = address(0x4);
+        uint256 initialMintFeeRecipientBalance = mintFeeRecipient.balance;
+        uint256 initialReferrerBalance = referrer.balance;
+
+        vm.prank(user1);
+        uint256 tokenId = token.mintWithReferral{value: 0.001 ether}(user1, referrer);
+
+        assertEq(tokenId, 1);
+        assertEq(token.ownerOf(1), user1);
+        assertEq(token.balanceOf(user1), 1);
+        assertEq(token.getCurrentId(), 1);
+
+        // Check referral fee distribution
+        uint256 referralFee = (0.001 ether * token.referralBps()) / 10000;
+        assertEq(referrer.balance, initialReferrerBalance + referralFee);
+        assertEq(mintFeeRecipient.balance, initialMintFeeRecipientBalance + (0.001 ether - referralFee));
+    }
+
+    function testMintWithScoreAndReferral() public {
+        address referrer = address(0x4);
+        uint256 score = 245;
+        uint256 timestamp = block.timestamp;
+        bytes memory signature = signScore(user1, score, timestamp);
+
+        uint256 initialMintFeeRecipientBalance = mintFeeRecipient.balance;
+        uint256 initialReferrerBalance = referrer.balance;
+
+        vm.prank(user1);
+        uint256 tokenId = token.mintWithScoreAndReferral{value: 0.001 ether}(user1, score, timestamp, referrer, signature);
+
+        assertEq(tokenId, 1);
+        assertEq(token.ownerOf(1), user1);
+        assertEq(token.balanceOf(user1), 1);
+        assertEq(token.getCurrentId(), 1);
+        assertEq(token.getScore(user1), score);
+
+        // Check referral fee distribution
+        uint256 referralFee = (0.001 ether * token.referralBps()) / 10000;
+        assertEq(referrer.balance, initialReferrerBalance + referralFee);
+        assertEq(mintFeeRecipient.balance, initialMintFeeRecipientBalance + (0.001 ether - referralFee));
+    }
+
+    function testMintWithScoreAndReferralAndPalette() public {
+        address referrer = address(0x4);
+        uint256 score = 245;
+        uint256 timestamp = block.timestamp;
+        uint256 palette = 3;
+        bytes memory signature = signScore(user1, score, timestamp);
+
+        uint256 initialMintFeeRecipientBalance = mintFeeRecipient.balance;
+        uint256 initialReferrerBalance = referrer.balance;
+
+        vm.prank(user1);
+        uint256 tokenId = token.mintWithScoreAndReferralAndPalette{value: 0.001 ether}(user1, score, timestamp, referrer, palette, signature);
+
+        assertEq(tokenId, 1);
+        assertEq(token.ownerOf(1), user1);
+        assertEq(token.balanceOf(user1), 1);
+        assertEq(token.getCurrentId(), 1);
+        assertEq(token.getScore(user1), score);
+        assertEq(token.getPaletteIndex(tokenId), palette);
+
+        // Check referral fee distribution
+        uint256 referralFee = (0.001 ether * token.referralBps()) / 10000;
+        assertEq(referrer.balance, initialReferrerBalance + referralFee);
+        assertEq(mintFeeRecipient.balance, initialMintFeeRecipientBalance + (0.001 ether - referralFee));
+    }
+
+    function testMintWithReferralInsufficientFee() public {
+        address referrer = address(0x4);
+        vm.prank(user1);
+        vm.expectRevert(StackScore.InsufficientFee.selector);
+        token.mintWithReferral{value: 0.0009 ether}(user1, referrer);
+    }
+
+    function testSetReferralBpsOnlyOwner() public {
+        uint256 newReferralBps = 100; // 1%
+        vm.prank(signer);
+        token.setReferralBps(newReferralBps);
+        assertEq(token.referralBps(), newReferralBps);
+
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector));
+        token.setReferralBps(200);
+    }
+
+    function testReferralFeesWithDifferentBPS() public {
+        vm.startPrank(signer);
+        token.setReferralBps(100); // 1%
+        vm.stopPrank();
+
+        address referrer = address(0x4);
+        uint256 initialMintFeeRecipientBalance = mintFeeRecipient.balance;
+        uint256 initialReferrerBalance = referrer.balance;
+
+        vm.prank(user1);
+        token.mintWithReferral{value: 0.001 ether}(user1, referrer);
+
+        uint256 referralFee = (0.001 ether * 100) / 10000; // 1% of 0.001 ether
+        assertEq(referrer.balance, initialReferrerBalance + referralFee);
+        assertEq(mintFeeRecipient.balance, initialMintFeeRecipientBalance + (0.001 ether - referralFee));
+    }
+
+    function testReferralFeesWithZeroBPS() public {
+        vm.startPrank(signer);
+        token.setReferralBps(0); // 0%
+        vm.stopPrank();
+
+        address referrer = address(0x4);
+        uint256 initialMintFeeRecipientBalance = mintFeeRecipient.balance;
+        uint256 initialReferrerBalance = referrer.balance;
+
+        vm.prank(user1);
+        token.mintWithReferral{value: 0.001 ether}(user1, referrer);
+
+        assertEq(referrer.balance, initialReferrerBalance); // Referrer should receive nothing
+        assertEq(mintFeeRecipient.balance, initialMintFeeRecipientBalance + 0.001 ether); // MintFeeRecipient should receive full amount
+    }
+
+    function testReferralFeesWithMaxBPS() public {
+        vm.startPrank(signer);
+        token.setReferralBps(10000); // 100%
+        vm.stopPrank();
+
+        address referrer = address(0x4);
+        uint256 initialMintFeeRecipientBalance = mintFeeRecipient.balance;
+        uint256 initialReferrerBalance = referrer.balance;
+
+        vm.prank(user1);
+        token.mintWithReferral{value: 0.001 ether}(user1, referrer);
+
+        assertEq(referrer.balance, initialReferrerBalance + 0.001 ether); // Referrer should receive full amount
+        assertEq(mintFeeRecipient.balance, initialMintFeeRecipientBalance); // MintFeeRecipient should receive nothing
+    }
+
+    function testSignatureReplayProtection() public {
+        vm.prank(user1);
+        uint256 tokenId = token.mint{value: 0.001 ether}(user1);
+
+        uint256 newScore = 300;
+        uint256 timestamp = block.timestamp;
+        bytes memory signature = signScore(user1, newScore, timestamp);
+
+        vm.prank(user1);
+        token.updateScore(tokenId, newScore, timestamp, signature);
+
+        // Attempt to use the same signature again
+        vm.prank(user1);
+        vm.expectRevert(StackScore.SignatureAlreadyUsed.selector);
+        token.updateScore(tokenId, newScore, timestamp, signature);
+    }
+
+    function testDifferentSignatures() public {
+        vm.prank(user1);
+        uint256 tokenId = token.mint{value: 0.001 ether}(user1);
+
+        uint256 score = 300;
+        uint256 newScore = 301;
+        uint256 timestamp = block.timestamp;
+        uint256 timestamp2 = timestamp + 1;
+        bytes memory signature1 = signScore(user1, score, timestamp);
+        bytes memory signature2 = signScore(user1, newScore, timestamp2);
+
+        assertTrue(keccak256(signature1) != keccak256(signature2));
+
+        vm.prank(user1);
+        token.updateScore(tokenId, score, timestamp, signature1);
+
+        // Second signature should still be valid
+        vm.prank(user1);
+        token.updateScore(tokenId, newScore, timestamp2, signature2);
+    }
+
     // Helper functions
 
     function signScore(address account, uint256 score, uint256 timestamp) internal view returns (bytes memory) {

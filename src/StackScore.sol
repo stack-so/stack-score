@@ -47,7 +47,11 @@ contract StackScore is AbstractNFT, IERC5192, ReentrancyGuard {
     event Minted(address to, uint256 tokenId);
     /// @notice Emitted when the mint fee is updated.
     event MintFeeUpdated(uint256 oldFee, uint256 newFee);
+    /// @notice Emitted when the mint fee recipient is updated.
     event MintFeeRecipientUpdated(address oldRecipient, address newRecipient);
+    /// @notice Emitted when the referral fee is updated.
+    /// @dev This is a percentage of the mint fee, in basis points (100 basis points is 1%).
+    event ReferralBpsUpdated(uint256 oldBps, uint256 newBps);
 
     /// @notice Error thrown when the token is locked upon transfer.
     error TokenLocked(uint256 tokenId);
@@ -91,7 +95,12 @@ contract StackScore is AbstractNFT, IERC5192, ReentrancyGuard {
     /// @param score The score to set.
     /// @param signature The signature to verify.
     /// @return The token ID.
-    function mintWithScore(address to, uint256 score, uint256 timestamp, bytes memory signature) payable public returns (uint256) {
+    function mintWithScore(
+        address to,
+        uint256 score,
+        uint256 timestamp,
+        bytes memory signature
+    ) payable public returns (uint256) {
         mint(to);
         updateScore(_currentId, score, timestamp, signature);
         return _currentId;
@@ -104,9 +113,74 @@ contract StackScore is AbstractNFT, IERC5192, ReentrancyGuard {
     /// @param palette The palette index to set.
     /// @param signature The signature to verify.
     /// @return The token ID.
-    function mintWithScoreAndPalette(address to, uint256 score, uint256 timestamp, uint256 palette, bytes memory signature) payable public returns (uint256) {
+    function mintWithScoreAndPalette(
+        address to,
+        uint256 score,
+        uint256 timestamp,
+        uint256 palette,
+        bytes memory signature
+    ) payable public returns (uint256) {
         require(msg.sender == to, "Only the recipient can call this function");
         mint(to);
+        updateScore(_currentId, score, timestamp, signature);
+        updatePalette(_currentId, palette);
+        return _currentId;
+    }
+
+    /// @notice Mint a new soulbound token with a referral.
+    /// @dev Mint a new token, lock it, and send a referral fee.
+    /// @param to The address to mint the token to.
+    /// @param referrer The address to send the referral fee to.
+    /// @return The token ID.
+    function mintWithReferral(address to, address referrer) payable public nonReentrant returns (uint256) {
+        if (msg.value < mintFee) {
+            revert InsufficientFee();
+        }
+
+        uint256 referralAmount = msg.value * referralBps / 10000;
+        SafeTransferLib.safeTransferETH(mintFeeRecipient, msg.value - referralAmount);
+        SafeTransferLib.safeTransferETH(referrer, referralAmount);
+        _mintTo(to);
+
+        return _currentId;
+    }
+
+    /// @notice Mint a new soulbound token with a score and referral.
+    /// @dev Mint a new token, lock it, update the score, and send a referral fee.
+    /// @param to The address to mint the token to.
+    /// @param score The score to set.
+    /// @param referrer The address to send the referral fee to.
+    /// @param signature The signature to verify.
+    /// @return The token ID.
+    function mintWithScoreAndReferral(
+        address to,
+        uint256 score,
+        uint256 timestamp,
+        address referrer,
+        bytes memory signature
+    ) payable public returns (uint256) {
+        mintWithReferral(to, referrer);
+        updateScore(_currentId, score, timestamp, signature);
+        return _currentId;
+    }
+
+    /// @notice Mint a new soulbound token with a score, referral, and palette.
+    /// @dev Mint a new token, lock it, update the score, send a referral fee, and update the palette.
+    /// @param to The address to mint the token to.
+    /// @param score The score to set.
+    /// @param referrer The address to send the referral fee to.
+    /// @param palette The palette index to set.
+    /// @param signature The signature to verify.
+    /// @return The token ID.
+    function mintWithScoreAndReferralAndPalette(
+        address to,
+        uint256 score,
+        uint256 timestamp,
+        address referrer,
+        uint256 palette,
+        bytes memory signature
+    ) payable public returns (uint256) {
+        mintWithReferral(to, referrer);
         updateScore(_currentId, score, timestamp, signature);
         updatePalette(_currentId, palette);
         return _currentId;
@@ -120,7 +194,7 @@ contract StackScore is AbstractNFT, IERC5192, ReentrancyGuard {
     function updateScore(uint256 tokenId, uint256 newScore, uint256 timestamp, bytes memory signature) public {
         _assertValidTimestamp(tokenId, timestamp);
         _assertValidScoreSignature(ownerOf(tokenId), newScore, timestamp, signature);
-        this.setTrait(tokenId, "updatedAt", bytes32(block.timestamp));
+        this.setTrait(tokenId, "updatedAt", bytes32(timestamp));
         uint256 oldScore = uint256(getTraitValue(tokenId, "score"));
         this.setTrait(tokenId, "score", bytes32(newScore));
         emit ScoreUpdated(tokenId, oldScore, newScore);
@@ -188,6 +262,11 @@ contract StackScore is AbstractNFT, IERC5192, ReentrancyGuard {
         uint256 oldFee = mintFee;
         mintFee = fee;
         emit MintFeeUpdated(oldFee, mintFee);
+    }
+
+    function setReferralBps(uint256 bps) public onlyOwner {
+        referralBps = bps;
+        emit ReferralBpsUpdated(referralBps, bps);
     }
 
     /// @notice Set the mint fee recipient.

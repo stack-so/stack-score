@@ -448,6 +448,89 @@ contract StackScoreTest is Test {
         token.updateScore(tokenId, newScore, timestamp2, signature2);
     }
 
+    function testTokenURIComponents() public {
+        vm.prank(user1);
+        uint256 tokenId = token.mint{value: 0.001 ether}(user1);
+
+        string memory uri = token.tokenURI(tokenId);
+
+        assertTrue(LibString.contains(uri, "\"name\":\"Stack Score\""));
+        assertTrue(LibString.contains(uri, "\"description\":\"Reputation score aggregated from Stack leaderboards\""));
+        assertTrue(LibString.contains(uri, "\"image\":\"data:image/svg+xml;base64,"));
+        assertTrue(LibString.contains(uri, "\"attributes\":["));
+    }
+
+    function testTokenURIUpdatesWithScore() public {
+        vm.prank(user1);
+        uint256 tokenId = token.mint{value: 0.001 ether}(user1);
+
+        string memory initialUri = token.tokenURI(tokenId);
+
+        uint256 newScore = 300;
+        uint256 timestamp = block.timestamp;
+        bytes memory signature = signScore(user1, newScore, timestamp);
+
+        vm.prank(user1);
+        token.updateScore(tokenId, newScore, timestamp, signature);
+
+        string memory updatedUri = token.tokenURI(tokenId);
+
+        assertTrue(keccak256(bytes(initialUri)) != keccak256(bytes(updatedUri)));
+        assertTrue(LibString.contains(updatedUri, LibString.toString(newScore)));
+    }
+
+    function testErrorOnTransferAttempt() public {
+        vm.prank(user1);
+        uint256 tokenId = token.mint{value: 0.001 ether}(user1);
+
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(StackScore.TokenLocked.selector, tokenId));
+        token.transferFrom(user1, user2, tokenId);
+    }
+
+    function testErrorOnInvalidTimestamp() public {
+        vm.prank(user1);
+        uint256 tokenId = token.mint{value: 0.001 ether}(user1);
+
+        uint256 oldScore = 200;
+        uint256 oldTimestamp = block.timestamp;
+        bytes memory oldSignature = signScore(user1, oldScore, oldTimestamp);
+
+        vm.prank(user1);
+        token.updateScore(tokenId, oldScore, oldTimestamp, oldSignature);
+
+        uint256 newScore = 300;
+        uint256 newTimestamp = oldTimestamp - 1; // Using an older timestamp
+        bytes memory newSignature = signScore(user1, newScore, newTimestamp);
+
+        vm.prank(user1);
+        vm.expectRevert(StackScore.TimestampTooOld.selector);
+        token.updateScore(tokenId, newScore, newTimestamp, newSignature);
+    }
+
+    function testErrorOnUnauthorizedPaletteUpdate() public {
+        vm.prank(user1);
+        uint256 tokenId = token.mint{value: 0.001 ether}(user1);
+
+        vm.prank(user2);
+        vm.expectRevert(StackScore.OnlyTokenOwner.selector);
+        token.updatePalette(tokenId, 5);
+    }
+
+    function testErrorOnMintWithInsufficientFee() public {
+        vm.prank(user1);
+        vm.expectRevert(StackScore.InsufficientFee.selector);
+        token.mint{value: 0.0009 ether}(user1);
+    }
+
+    function testErrorOnSecondMintAttempt() public {
+        vm.startPrank(user1);
+        token.mint{value: 0.001 ether}(user1);
+        vm.expectRevert(StackScore.OneTokenPerAddress.selector);
+        token.mint{value: 0.001 ether}(user1);
+        vm.stopPrank();
+    }
+
     // Helper functions
 
     function signScore(address account, uint256 score, uint256 timestamp) internal view returns (bytes memory) {

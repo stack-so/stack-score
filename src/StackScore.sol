@@ -17,9 +17,10 @@ import {IERC5192} from "./interfaces/IERC5192.sol";
 
 /// @title StackScore
 /// @notice A contract for minting and managing Stack Score NFTs.
+/// @author strangechances
 contract StackScore is AbstractNFT, IERC5192, ReentrancyGuard {
     /// @notice The current token ID.
-    string public version = "1";
+    string public constant version = "1";
     /// @notice The signer address.
     address public signer;
     /// @notice The mint fee.
@@ -33,7 +34,7 @@ contract StackScore is AbstractNFT, IERC5192, ReentrancyGuard {
     /// @dev This is used to prevent replay attacks.
     mapping(bytes32 => bool) internal signatures;
     /// @notice The current token ID.
-    uint256 internal _currentId;
+    uint256 internal currentId;
     /// @notice The renderer contract.
     /// @dev This contract is used to render the SVG image.
     StackScoreRenderer internal renderer;
@@ -45,6 +46,8 @@ contract StackScore is AbstractNFT, IERC5192, ReentrancyGuard {
     event ScoreUpdated(uint256 tokenId, uint256 oldScore, uint256 newScore);
     /// @notice Emitted when a token is minted.
     event Minted(address to, uint256 tokenId);
+    /// @notice Emitted when a referral is paid.
+    event ReferralPaid(address referrer, address referred, uint256 amount);
     /// @notice Emitted when the mint fee is updated.
     event MintFeeUpdated(uint256 oldFee, uint256 newFee);
     /// @notice Emitted when the mint fee recipient is updated.
@@ -70,7 +73,7 @@ contract StackScore is AbstractNFT, IERC5192, ReentrancyGuard {
 
     /// @notice Constructor
     /// @dev Set the name and symbol of the token.
-    constructor(address initialOwner) AbstractNFT("Stack Score", "Stack_Score") {
+    constructor(address initialOwner) AbstractNFT("Stack Score", "STACK_SCORE") {
         _initializeOwner(initialOwner);
     }
 
@@ -79,14 +82,33 @@ contract StackScore is AbstractNFT, IERC5192, ReentrancyGuard {
     /// @param to The address to mint the token to.
     /// @return The token ID.
     function mint(address to) payable public nonReentrant returns (uint256) {
-        if (msg.value < mintFee) {
-            revert InsufficientFee();
-        }
+        _assertSufficientFee();
 
         SafeTransferLib.safeTransferETH(mintFeeRecipient, msg.value);
         _mintTo(to);
 
-        return _currentId;
+        return currentId;
+    }
+
+    /// @notice Mint a new soulbound token with a referral.
+    /// @dev Mint a new token, lock it, and send a referral fee.
+    /// @dev Does not need to check a signature, since there is no score.
+    /// @param to The address to mint the token to.
+    /// @param referrer The address to send the referral fee to.
+    /// @return The token ID.
+    function mintWithReferral(
+        address to,
+        address referrer
+    ) payable public nonReentrant returns (uint256) {
+        _assertSufficientFee();
+
+        uint256 referralAmount = msg.value * referralBps / 10000;
+        SafeTransferLib.safeTransferETH(mintFeeRecipient, msg.value - referralAmount);
+        emit ReferralPaid(referrer, to, referralAmount);
+        SafeTransferLib.safeTransferETH(referrer, referralAmount);
+        _mintTo(to);
+
+        return currentId;
     }
 
     /// @notice Mint a new soulbound token with a score.
@@ -102,8 +124,8 @@ contract StackScore is AbstractNFT, IERC5192, ReentrancyGuard {
         bytes memory signature
     ) payable public returns (uint256) {
         mint(to);
-        updateScore(_currentId, score, timestamp, signature);
-        return _currentId;
+        updateScore(currentId, score, timestamp, signature);
+        return currentId;
     }
 
     /// @notice Mint a new soulbound token with a score and palette.
@@ -120,29 +142,10 @@ contract StackScore is AbstractNFT, IERC5192, ReentrancyGuard {
         uint256 palette,
         bytes memory signature
     ) payable public returns (uint256) {
-        require(msg.sender == to, "Only the recipient can call this function");
         mint(to);
-        updateScore(_currentId, score, timestamp, signature);
-        updatePalette(_currentId, palette);
-        return _currentId;
-    }
-
-    /// @notice Mint a new soulbound token with a referral.
-    /// @dev Mint a new token, lock it, and send a referral fee.
-    /// @param to The address to mint the token to.
-    /// @param referrer The address to send the referral fee to.
-    /// @return The token ID.
-    function mintWithReferral(address to, address referrer) payable public nonReentrant returns (uint256) {
-        if (msg.value < mintFee) {
-            revert InsufficientFee();
-        }
-
-        uint256 referralAmount = msg.value * referralBps / 10000;
-        SafeTransferLib.safeTransferETH(mintFeeRecipient, msg.value - referralAmount);
-        SafeTransferLib.safeTransferETH(referrer, referralAmount);
-        _mintTo(to);
-
-        return _currentId;
+        updateScore(currentId, score, timestamp, signature);
+        updatePalette(currentId, palette);
+        return currentId;
     }
 
     /// @notice Mint a new soulbound token with a score and referral.
@@ -160,8 +163,8 @@ contract StackScore is AbstractNFT, IERC5192, ReentrancyGuard {
         bytes memory signature
     ) payable public returns (uint256) {
         mintWithReferral(to, referrer);
-        updateScore(_currentId, score, timestamp, signature);
-        return _currentId;
+        updateScore(currentId, score, timestamp, signature);
+        return currentId;
     }
 
     /// @notice Mint a new soulbound token with a score, referral, and palette.
@@ -181,9 +184,9 @@ contract StackScore is AbstractNFT, IERC5192, ReentrancyGuard {
         bytes memory signature
     ) payable public returns (uint256) {
         mintWithReferral(to, referrer);
-        updateScore(_currentId, score, timestamp, signature);
-        updatePalette(_currentId, palette);
-        return _currentId;
+        updateScore(currentId, score, timestamp, signature);
+        updatePalette(currentId, palette);
+        return currentId;
     }
 
     /// @notice Update the score for a given token ID.
@@ -233,7 +236,7 @@ contract StackScore is AbstractNFT, IERC5192, ReentrancyGuard {
     /// @notice Get the current token ID.
     /// @return The current token ID.
     function getCurrentId() public view returns (uint256) {
-        return _currentId;
+        return currentId;
     }
 
     /// @notice Get the renderer contract address.
@@ -291,13 +294,13 @@ contract StackScore is AbstractNFT, IERC5192, ReentrancyGuard {
         _assertOneTokenPerAddress(to);
 
         unchecked {
-            _mint(to, ++_currentId);
+            _mint(to, ++currentId);
         }
 
-        addressToTokenId[to] = _currentId;
+        addressToTokenId[to] = currentId;
 
-        emit Minted(to, _currentId);
-        emit Locked(_currentId);
+        emit Minted(to, currentId);
+        emit Locked(currentId);
     }
 
     /// @notice Verify the signature for the score.
@@ -336,6 +339,12 @@ contract StackScore is AbstractNFT, IERC5192, ReentrancyGuard {
         // Ensure the score is newer than the last update.
         if (lastUpdatedAt > timestamp) {
             revert TimestampTooOld();
+        }
+    }
+
+    function _assertSufficientFee() internal view {
+        if (msg.value < mintFee) {
+            revert InsufficientFee();
         }
     }
 

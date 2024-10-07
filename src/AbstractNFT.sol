@@ -6,9 +6,9 @@ import {json} from "./onchain/json.sol";
 import {Metadata} from "./onchain/Metadata.sol";
 import {LibString} from "solady/utils/LibString.sol";
 import {Solarray} from "solarray/Solarray.sol";
-
 import {OnchainTraits, DynamicTraits} from "./dynamic-traits/OnchainTraits.sol";
 
+// @authors Modified from: https://github.com/ProjectOpenSea/shipyard-core/blob/main/src/reference/AbstractNFT.sol
 abstract contract AbstractNFT is OnchainTraits, ERC721ConduitPreapproved_Solady {
     string _name;
     string _symbol;
@@ -39,14 +39,7 @@ abstract contract AbstractNFT is OnchainTraits, ERC721ConduitPreapproved_Solady 
      * @param tokenId The token ID to get URI for
      */
     function _stringURI(uint256 tokenId) internal view virtual returns (string memory) {
-        return json.objectOf(
-            Solarray.strings(
-                json.property("name", string.concat("Example NFT #", LibString.toString(tokenId))),
-                json.property("description", "This is an example NFT"),
-                json.property("image", Metadata.base64SvgDataURI(_image(tokenId))),
-                _attributes(tokenId)
-            )
-        );
+        return "";
     }
 
     /**

@@ -58,7 +58,7 @@ contract StackScoreTest is Test {
 
     function testInitialState() public view {
         assertEq(token.name(), "Stack Score");
-        assertEq(token.symbol(), "Stack_Score");
+        assertEq(token.symbol(), "STACK_SCORE");
         assertEq(token.version(), "1");
         assertEq(token.signer(), signer);
         assertEq(token.mintFee(), 0.001 ether);
@@ -262,7 +262,6 @@ contract StackScoreTest is Test {
         string memory uri = token.tokenURI(tokenId);
         assertTrue(bytes(uri).length > 0);
 
-        console.log("URI: ", uri);
         assertTrue(LibString.startsWith(uri, "{\"name\":\"Stack Score\""));
         assertTrue(LibString.contains(uri, "data:image/svg+xml;base64,"));
     }

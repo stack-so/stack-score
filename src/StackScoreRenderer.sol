@@ -12,21 +12,21 @@ contract StackScoreRenderer {
     /// @dev A palette is 3 colors in the order: top, bottom, middle.
     /// @dev The colors are stored as bytes3 to save gas
     bytes3[3][11] private COLOR_PALETTES = [
-    [bytes3(0x4F4C42), bytes3(0xACA695), bytes3(0xDBD9D1)],
-    [bytes3(0x1D3C86), bytes3(0x2960E7), bytes3(0x4DB0F3)],
-    [bytes3(0x0331A6), bytes3(0x5E83AA), bytes3(0xD2B481)],
-    [bytes3(0x412C3F), bytes3(0xDA6A87), bytes3(0xDF819A)],
-    [bytes3(0x0B241A), bytes3(0x5BC793), bytes3(0x5E83AA)],
-    [bytes3(0xEB90BE), bytes3(0xEC5E3B), bytes3(0xF9D85B)],
-    [bytes3(0xA13120), bytes3(0xEB5640), bytes3(0xEBDE8F)],
-    [bytes3(0x0331A6), bytes3(0xB6BEC6), bytes3(0xF6CB82)],
-    [bytes3(0x3B7BF6), bytes3(0xB7CDCE), bytes3(0xF09ABD)],
-    [bytes3(0x3579BD), bytes3(0xDEAC91), bytes3(0xEC6C3F)],
-    [bytes3(0x301C28), bytes3(0xCFA37F), bytes3(0xD7482C)]
+        [bytes3(0x4F4C42), bytes3(0xACA695), bytes3(0xDBD9D1)],
+        [bytes3(0x1D3C86), bytes3(0x2960E7), bytes3(0x4DB0F3)],
+        [bytes3(0x0331A6), bytes3(0x5E83AA), bytes3(0xD2B481)],
+        [bytes3(0x412C3F), bytes3(0xDA6A87), bytes3(0xDF819A)],
+        [bytes3(0x0B241A), bytes3(0x5BC793), bytes3(0x5E83AA)],
+        [bytes3(0xEB90BE), bytes3(0xEC5E3B), bytes3(0xF9D85B)],
+        [bytes3(0xA13120), bytes3(0xEB5640), bytes3(0xEBDE8F)],
+        [bytes3(0x0331A6), bytes3(0xB6BEC6), bytes3(0xF6CB82)],
+        [bytes3(0x3B7BF6), bytes3(0xB7CDCE), bytes3(0xF09ABD)],
+        [bytes3(0x3579BD), bytes3(0xDEAC91), bytes3(0xEC6C3F)],
+        [bytes3(0x301C28), bytes3(0xCFA37F), bytes3(0xD7482C)]
     ];
 
     string[] private MONTHS = [
-    "JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"
+        "JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"
     ];
 
     /// @notice Get the color at a given index in a given palette as a hex string

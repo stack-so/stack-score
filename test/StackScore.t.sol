@@ -44,7 +44,7 @@ contract StackScoreTest is Test {
         user2 = address(0x2);
         mintFeeRecipient = address(0x3);
 
-        token = new StackScore();
+        token = new StackScore(address(this));
         renderer = new StackScoreRenderer();
         token.setRenderer(address(renderer));
         token.setSigner(signer);
@@ -56,7 +56,7 @@ contract StackScoreTest is Test {
         vm.deal(user2, 1 ether);
     }
 
-    function testInitialState() public {
+    function testInitialState() public view {
         assertEq(token.name(), "Stack Score");
         assertEq(token.symbol(), "Stack_Score");
         assertEq(token.version(), "1");
@@ -99,7 +99,7 @@ contract StackScoreTest is Test {
     function testMintOnlyOneTokenPerAddress() public {
         vm.startPrank(user1);
         token.mint{value: 0.001 ether}(user1);
-        vm.expectRevert("Only one token per address");
+        vm.expectRevert(StackScore.OneTokenPerAddress.selector);
         token.mint{value: 0.001 ether}(user1);
         vm.stopPrank();
     }
@@ -276,7 +276,7 @@ contract StackScoreTest is Test {
 
     // Helper functions
 
-    function signScore(address account, uint256 score, uint256 timestamp) internal returns (bytes memory) {
+    function signScore(address account, uint256 score, uint256 timestamp) internal view returns (bytes memory) {
         bytes32 messageHash = keccak256(abi.encodePacked(account, score, timestamp));
         bytes32 hash = ECDSA.toEthSignedMessageHash(messageHash);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerPk, hash);

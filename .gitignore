@@ -2,8 +2,11 @@
 cache/
 out/
 
+# local files
+local/
+
 # Ignores development broadcast logs
-!/broadcast
+/broadcast
 /broadcast/*/31337/
 /broadcast/**/dry-run/
 
@@ -12,3 +15,11 @@ docs/
 
 # Dotenv file
 .env
+
+.DS_Store
+.vscode
+.idea
+
+# coverage
+html
+lcov.info

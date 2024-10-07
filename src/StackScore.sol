@@ -50,6 +50,8 @@ contract StackScore is AbstractNFT, IERC5192, ReentrancyGuard {
     error OnlyTokenOwner();
     /// @notice Error thrown when the timestamp is too old.
     error TimestampTooOld();
+    /// @notice Error thrown if mint called for the second time for the same address.
+    error OneTokenPerAddress();
 
     /// @notice Emitted when the score is updated.
     event ScoreUpdated(uint256 tokenId, uint256 oldScore, uint256 newScore);
@@ -61,7 +63,9 @@ contract StackScore is AbstractNFT, IERC5192, ReentrancyGuard {
 
     /// @notice Constructor
     /// @dev Set the name and symbol of the token.
-    constructor() AbstractNFT("Stack Score", "Stack_Score") {}
+    constructor(address initialOwner) AbstractNFT("Stack Score", "Stack_Score") {
+        _initializeOwner(initialOwner);
+    }
 
     /// @notice Get the current token ID.
     /// @return The current token ID.
@@ -83,7 +87,10 @@ contract StackScore is AbstractNFT, IERC5192, ReentrancyGuard {
         if (msg.value < mintFee) {
             revert InsufficientFee();
         }
-        require(balanceOf(to) == 0, "Only one token per address");
+
+        if (balanceOf(to) > 0) {
+            revert OneTokenPerAddress();
+        }
 
         SafeTransferLib.safeTransferETH(mintFeeRecipient, msg.value);
 
@@ -134,7 +141,7 @@ contract StackScore is AbstractNFT, IERC5192, ReentrancyGuard {
     /// @notice Get the score for a given account.
     /// @param account The account to get the score for.
     /// @return The score.
-    function getScore(address account) public returns (uint256) {
+    function getScore(address account) public view returns (uint256) {
         return uint256(getTraitValue(addressToTokenId[account], "score"));
     }
 
@@ -215,7 +222,7 @@ contract StackScore is AbstractNFT, IERC5192, ReentrancyGuard {
     /// @dev The function throws an error if the timestamp is too old.
     /// @param tokenId The token ID to verify the timestamp for.
     /// @param timestamp The timestamp to verify.
-    function _assertValidTimestamp(uint256 tokenId, uint256 timestamp) internal {
+    function _assertValidTimestamp(uint256 tokenId, uint256 timestamp) internal view {
         uint256 lastUpdatedAt = uint256(getTraitValue(tokenId, "updatedAt"));
         // Ensure the score is newer than the last update.
         if (lastUpdatedAt > timestamp) {
@@ -251,7 +258,7 @@ contract StackScore is AbstractNFT, IERC5192, ReentrancyGuard {
     /// @dev Only allow transfers from the zero address, since the token is soulbound.
     /// @param from The address the token is being transferred from
     /// @param tokenId The token ID
-    function _beforeTokenTransfer(address from, address, uint256 tokenId) internal view override {
+    function _beforeTokenTransfer(address from, address, uint256 tokenId) internal pure override {
         // if the token is being transferred from an address
         if (from != address(0)) {
             revert TokenLocked(tokenId);

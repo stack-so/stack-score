@@ -140,7 +140,7 @@ contract StackScoreTest is Test {
 
         vm.prank(user1);
         vm.expectEmit(true, true, true, true);
-        emit StackScore.ScoreUpdated(tokenId, 0, newScore);
+        emit StackScore.ScoreUpdated(user1, tokenId, 0, newScore);
         token.updateScore(tokenId, newScore, timestamp, signature);
 
         assertEq(token.getScore(user1), newScore);

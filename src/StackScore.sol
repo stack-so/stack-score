@@ -43,7 +43,7 @@ contract StackScore is AbstractNFT, IERC5192, ReentrancyGuard {
     address public mintFeeRecipient;
 
     /// @notice Emitted when the score is updated.
-    event ScoreUpdated(uint256 tokenId, uint256 oldScore, uint256 newScore);
+    event ScoreUpdated(address account, uint256 tokenId, uint256 oldScore, uint256 newScore);
     /// @notice Emitted when a token is minted.
     event Minted(address to, uint256 tokenId);
     /// @notice Emitted when a referral is paid.
@@ -195,12 +195,13 @@ contract StackScore is AbstractNFT, IERC5192, ReentrancyGuard {
     /// @param newScore The new score.
     /// @param signature The signature to verify.
     function updateScore(uint256 tokenId, uint256 newScore, uint256 timestamp, bytes memory signature) public {
+        address account = ownerOf(tokenId);
         _assertValidTimestamp(tokenId, timestamp);
-        _assertValidScoreSignature(ownerOf(tokenId), newScore, timestamp, signature);
+        _assertValidScoreSignature(account, newScore, timestamp, signature);
         this.setTrait(tokenId, "updatedAt", bytes32(timestamp));
         uint256 oldScore = uint256(getTraitValue(tokenId, "score"));
         this.setTrait(tokenId, "score", bytes32(newScore));
-        emit ScoreUpdated(tokenId, oldScore, newScore);
+        emit ScoreUpdated(account, tokenId, oldScore, newScore);
     }
 
     /// @notice Update the palette index for a given token ID.

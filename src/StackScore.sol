@@ -226,6 +226,26 @@ contract StackScore is AbstractNFT, IERC5192, ReentrancyGuard {
         return uint256(getTraitValue(addressToTokenId[account], "score"));
     }
 
+    /// @notice Get the updated at timestamp for a given token ID.
+    /// @dev The updated at timestamp is the timestamp of the last score update.
+    /// @param tokenId The token ID to get the updated at timestamp for.
+    /// @return The updated at timestamp.
+    function getUpdatedAt(uint256 tokenId) public view returns (uint256) {
+        return uint256(getTraitValue(tokenId, "updatedAt"));
+    }
+
+    /// @notice Get the score and last updated timestamp for a given account.
+    /// @dev The score is the reputation score aggregated from Stack leaderboards, and the last updated timestamp.
+    /// @param account The account to get the score and last updated timestamp for.
+    /// @return The score and last updated timestamp.
+    function getScoreAndLastUpdated(address account) public view returns (uint256, uint256) {
+        uint256 tokenId = addressToTokenId[account];
+        return (
+            uint256(getTraitValue(tokenId, "score")),
+            uint256(getTraitValue(tokenId, "updatedAt"))
+        );
+    }
+
     /// @notice Get the palette index for a given token ID.
     /// @param tokenId The token ID to get the palette index for.
     /// @return The palette index.

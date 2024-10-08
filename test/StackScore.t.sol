@@ -146,6 +146,40 @@ contract StackScoreTest is Test {
         assertEq(token.getScore(user1), newScore);
     }
 
+    function testGetScore() public {
+        vm.prank(user1);
+        uint256 tokenId = token.mint{value: 0.001 ether}(user1);
+
+        uint256 score = 245;
+        uint256 timestamp = block.timestamp;
+        bytes memory signature = signScore(user1, score, timestamp);
+
+        vm.prank(user1);
+        token.updateScore(tokenId, score, timestamp, signature);
+
+        assertEq(token.getScore(user1), score);
+    }
+
+    function testGetScoreAndUpdatedAt() public {
+        vm.prank(user1);
+        uint256 tokenId = token.mint{value: 0.001 ether}(user1);
+
+        uint256 scoreInput = 245;
+        uint256 timestamp = block.timestamp;
+        bytes memory signature = signScore(user1, scoreInput, timestamp);
+
+        vm.prank(user1);
+        token.updateScore(tokenId, scoreInput, timestamp, signature);
+
+        (
+            uint256 scoreResult,
+            uint256 updatedAt
+        ) = token.getScoreAndLastUpdated(user1);
+
+        assertEq(scoreResult, scoreInput);
+        assertEq(updatedAt, timestamp);
+    }
+
     function testUpdateScoreWithInvalidSignature() public {
         vm.prank(user1);
         uint256 tokenId = token.mint{value: 0.001 ether}(user1);

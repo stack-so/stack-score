@@ -8,9 +8,9 @@ import {StackScoreRenderer} from "../src/StackScoreRenderer.sol";
 contract DeployStackScore is Script {
     // Constants
     address public constant expectedOwnerAddress = 0x42c22eBD6f07FC052040137eEb3B8a1b7A38b275;
-    address public constant CONTRACT_ADDRESS = 0x5555551A4a5bfAc620166A05F815F0c1136da43F;
-    bytes32 private constant SALT = 0x5980aa63fecf09543c295ae0d806fbb60ca93477ccd2b0310ee6c0740b2c62ef;
-    bytes32 private constant EXPECTED_CODE_HASH = 0x0710ab49c20561f0ab210a2f25eae8eeddab868770bcafdc8ad24463cb3d7d71;
+    address public constant CONTRACT_ADDRESS = 0x555555Ce7c6390586a7a1738eF482C43205c2ED2;
+    bytes32 private constant SALT = 0x6751fdf39332ede6bd70d6f1851c1b263e652d84755dd67bc3003c157954b3e6;
+    bytes32 private constant EXPECTED_CODE_HASH = 0xd0b11c17ec098618d4aca85f5ff089f1e012bbdef94dee3c2e4a62e6cf533aa8;
 
     // Variables
     StackScore public token;

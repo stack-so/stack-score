@@ -29,7 +29,7 @@ contract StackScore is AbstractNFT, IERC5192, ReentrancyGuard {
     /// @dev This is a percentage of the mint fee, in basis points (100 basis points is 1%).
     uint256 public referralBps = 50;
     /// @notice Address to token ID mapping.
-    mapping(address => uint256) internal addressToTokenId;
+    mapping(address => uint256) public addressToTokenId;
     /// @notice Signature to used mapping.
     /// @dev This is used to prevent replay attacks.
     mapping(bytes32 => bool) internal signatures;

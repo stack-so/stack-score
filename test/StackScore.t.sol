@@ -116,6 +116,22 @@ contract StackScoreTest is Test {
         vm.stopPrank();
     }
 
+    function testMintWithZeroScore() public {
+        vm.prank(user1);
+        uint256 tokenId = token.mint{value: 0.001 ether}(user1);
+        assertEq(token.getScore(user1), 0);
+    }
+
+    function testMintWithScoreAndZeroScore() public {
+        uint256 score = 0;
+        uint256 timestamp = block.timestamp;
+        bytes memory signature = signScore(user1, score, timestamp);
+
+        vm.prank(user1);
+        uint256 tokenId = token.mintWithScore{value: 0.001 ether}(user1, score, timestamp, signature);
+        assertEq(token.getScore(user1), score);
+    }
+
     function testMintWithScore() public {
         uint256 score = 245;
         uint256 timestamp = block.timestamp;
@@ -585,7 +601,7 @@ contract StackScoreTest is Test {
 
         vm.expectRevert(OnchainTraits.InsufficientPrivilege.selector);
         token.setTrait(tokenId, "paletteIndex", bytes32(uint256(4)));
-        vm.stopPrank(); 
+        vm.stopPrank();
     }
 
     // Helper functions

@@ -33,7 +33,7 @@ contract StackScore is AbstractNFT, IERC5192, ReentrancyGuard {
     uint256 public mintFee = 0.001 ether;
     /// @notice The referral fee percentage, in basis points.
     /// @dev This is a percentage of the mint fee, in basis points (100 basis points is 1%).
-    uint256 public referralBps = 50;
+    uint256 public referralBps = 5000;
     /// @notice Address to token ID mapping.
     /// @dev Prevents multiple tokens from being minted for the same address.
     mapping(address => uint256) public addressToTokenId;
@@ -210,11 +210,15 @@ contract StackScore is AbstractNFT, IERC5192, ReentrancyGuard {
     /// @param newScore The new score.
     /// @param signature The signature to verify.
     function updateScore(uint256 tokenId, uint256 newScore, uint256 timestamp, bytes memory signature) public {
+        uint256 oldScore = uint256(getTraitValue(tokenId, "score"));
+        if (newScore == 0 && oldScore == 0) {
+            // No need to update the score if it's already 0.
+            return;
+        }
         address account = ownerOf(tokenId);
         _assertValidTimestamp(tokenId, timestamp);
         _assertValidScoreSignature(account, newScore, timestamp, signature);
         this.setTrait(tokenId, "updatedAt", bytes32(timestamp));
-        uint256 oldScore = uint256(getTraitValue(tokenId, "score"));
         this.setTrait(tokenId, "score", bytes32(newScore));
         emit ScoreUpdated(account, tokenId, oldScore, newScore);
     }

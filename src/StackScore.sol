@@ -342,6 +342,9 @@ contract StackScore is AbstractNFT, IERC5192, ReentrancyGuard {
         emit MintFeeUpdated(oldFee, mintFee);
     }
 
+    /// @notice Set the referral fee percentage.
+    /// @dev Only the owner can set the referral fee percentage.
+    /// @param bps The referral fee percentage, in basis points.
     function setReferralBps(uint256 bps) public onlyOwner {
         referralBps = bps;
         emit ReferralBpsUpdated(referralBps, bps);

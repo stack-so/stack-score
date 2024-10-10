@@ -9,6 +9,15 @@ import {TraitLabel, Editors, FullTraitValue, AllowedEditor, EditorsLib} from "sr
 import {DisplayType} from "src/onchain/Metadata.sol";
 import {LibString} from "solady/utils/LibString.sol";
 
+// Fee recipient contract is a hypothetical treasury.
+contract Treasury {
+    event Received(address indexed sender, uint256 value);
+    /// @notice Received event.
+    receive() external payable {
+        emit Received(msg.sender, msg.value);
+    }
+}
+
 contract StackScoreTest is Test {
     /// @notice StackScore token contract.
     StackScore token;
@@ -42,7 +51,9 @@ contract StackScoreTest is Test {
         owner = address(this);
         user1 = address(0x1);
         user2 = address(0x2);
-        mintFeeRecipient = address(0x3);
+
+        Treasury treasury = new Treasury();
+        mintFeeRecipient = address(treasury);
 
         token = new StackScore(address(this));
         renderer = new StackScoreRenderer();

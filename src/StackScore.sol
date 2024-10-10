@@ -22,6 +22,10 @@ import {IERC5192} from "./interfaces/IERC5192.sol";
 contract StackScore is AbstractNFT, IERC5192, ReentrancyGuard {
     /// @notice The current version of the contract.
     string public constant version = "1";
+    /// @notice The name of the token.
+    string internal constant _tokenName = "Stack Score";
+    /// @notice The description of the token.
+    string internal constant _tokenDescription = "A dynamic, onchain, soulbound reputation score";
     /// @notice The signer address.
     /// @dev The signer address is used to verify the score signature.
     address public signer;
@@ -82,7 +86,7 @@ contract StackScore is AbstractNFT, IERC5192, ReentrancyGuard {
 
     /// @notice Constructor
     /// @dev Set the name and symbol of the token.
-    constructor(address initialOwner) AbstractNFT("Stack Score", "STACK_SCORE") {
+    constructor(address initialOwner) AbstractNFT(_tokenName, "STACK_SCORE") {
         _initializeOwner(initialOwner);
     }
 
@@ -394,8 +398,8 @@ contract StackScore is AbstractNFT, IERC5192, ReentrancyGuard {
     function _stringURI(uint256 tokenId) internal view override returns (string memory) {
         return json.objectOf(
             Solarray.strings(
-                json.property("name", "Stack Score"),
-                json.property("description", "Reputation score aggregated from Stack leaderboards"),
+                json.property("name", _tokenName),
+                json.property("description", _tokenDescription),
                 json.property("image", Metadata.base64SvgDataURI(_image(tokenId))),
                 _attributes(tokenId)
             )

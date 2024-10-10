@@ -488,7 +488,7 @@ contract StackScoreTest is Test {
         string memory uri = token.tokenURI(tokenId);
 
         assertTrue(LibString.contains(uri, "\"name\":\"Stack Score\""));
-        assertTrue(LibString.contains(uri, "\"description\":\"Reputation score aggregated from Stack leaderboards\""));
+        assertTrue(LibString.contains(uri, "\"description\":\"A dynamic, onchain, soulbound reputation score\""));
         assertTrue(LibString.contains(uri, "\"image\":\"data:image/svg+xml;base64,"));
         assertTrue(LibString.contains(uri, "\"attributes\":["));
     }

@@ -204,6 +204,37 @@ contract StackScore is AbstractNFT, IERC5192, ReentrancyGuard {
         return currentId;
     }
 
+    /// @notice Mint a new soulbound token with a referral and palette.
+    /// @dev Mint a new token, lock it, send a referral fee, and update the palette.
+    /// @dev Does not require a signature, since there is no score.
+    /// @param to The address to mint the token to.
+    /// @param referrer The address to send the referral fee to.
+    /// @param palette The palette index to set.
+    /// @return The token ID.
+    function mintWithReferralAndPalette(
+        address to,
+        address referrer,
+        uint256 palette
+    ) payable public nonReentrant returns (uint256) {
+        mintWithReferral(to, referrer);
+        updatePalette(currentId, palette);
+        return currentId;
+    }
+
+    /// @notice Mint a new soulbound token with a palette.
+    /// @dev Mint a new token, lock it, and update the palette.
+    /// @dev Does not require a signature, since there is no score.
+    /// @param to The address to mint the token to.
+    /// @param palette The palette index to set.
+    function mintWithPalette(
+        address to,
+        uint256 palette
+    ) payable public nonReentrant returns (uint256) {
+        mint(to);
+        updatePalette(currentId, palette);
+        return currentId;
+    }
+
     /// @notice Update the score for a given token ID.
     /// @dev The score is signed by the signer for the account.
     /// @param tokenId The token ID to update.

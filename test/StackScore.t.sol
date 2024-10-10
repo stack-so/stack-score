@@ -8,6 +8,7 @@ import {ECDSA} from "solady/utils/ECDSA.sol";
 import {TraitLabel, Editors, FullTraitValue, AllowedEditor, EditorsLib} from "src/dynamic-traits/lib/TraitLabelLib.sol";
 import {DisplayType} from "src/onchain/Metadata.sol";
 import {LibString} from "solady/utils/LibString.sol";
+import {OnchainTraits} from "src/dynamic-traits/OnchainTraits.sol";
 
 contract StackScoreTest is Test {
     /// @notice StackScore token contract.
@@ -562,6 +563,18 @@ contract StackScoreTest is Test {
         vm.expectRevert(StackScore.OneTokenPerAddress.selector);
         token.mint{value: 0.001 ether}(user1);
         vm.stopPrank();
+    }
+
+    function testErrorSetTraitDirectly() public {
+        vm.startPrank(user1);
+        uint256 tokenId = token.mint{value: 0.001 ether}(user1);
+
+        vm.expectRevert(OnchainTraits.InsufficientPrivilege.selector);
+        token.setTrait(tokenId, "score", bytes32(uint256(100)));
+
+        vm.expectRevert(OnchainTraits.InsufficientPrivilege.selector);
+        token.setTrait(tokenId, "paletteIndex", bytes32(uint256(4)));
+        vm.stopPrank(); 
     }
 
     // Helper functions

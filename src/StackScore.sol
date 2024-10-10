@@ -16,21 +16,24 @@ import {StackScoreRenderer} from "./StackScoreRenderer.sol";
 import {IERC5192} from "./interfaces/IERC5192.sol";
 
 /// @title StackScore
-/// @notice A contract for minting and managing Stack Score NFTs.
-/// @author strangechances
+/// @notice A fully onchain, dynamic, soulbound token for reputation scores
+/// @notice Each score is rendered as an onchain SVG.
+/// @author strangechances (g@stack.so)
 contract StackScore is AbstractNFT, IERC5192, ReentrancyGuard {
-    /// @notice The current token ID.
+    /// @notice The current version of the contract.
     string public constant version = "1";
     /// @notice The signer address.
+    /// @dev The signer address is used to verify the score signature.
     address public signer;
     /// @notice The mint fee.
     uint256 public mintFee = 0.001 ether;
-    /// @notice The referral fee.
+    /// @notice The referral fee percentage, in basis points.
     /// @dev This is a percentage of the mint fee, in basis points (100 basis points is 1%).
     uint256 public referralBps = 50;
     /// @notice Address to token ID mapping.
+    /// @dev Prevents multiple tokens from being minted for the same address.
     mapping(address => uint256) public addressToTokenId;
-    /// @notice Signature to used mapping.
+    /// @notice Signature mapping, to prevent replay attacks.
     /// @dev This is used to prevent replay attacks.
     mapping(bytes32 => bool) internal signatures;
     /// @notice The current token ID.
@@ -39,7 +42,7 @@ contract StackScore is AbstractNFT, IERC5192, ReentrancyGuard {
     /// @dev This contract is used to render the SVG image.
     StackScoreRenderer internal renderer;
     /// @notice The mint fee recipient.
-    /// @dev This address receives the mint fee.
+    /// @dev This address receives the mint fee, minus any referral fee.
     address public mintFeeRecipient;
 
     /// @notice Emitted when the score is updated.
@@ -55,8 +58,13 @@ contract StackScore is AbstractNFT, IERC5192, ReentrancyGuard {
     /// @notice Emitted when the referral fee is updated.
     /// @dev This is a percentage of the mint fee, in basis points (100 basis points is 1%).
     event ReferralBpsUpdated(uint256 oldBps, uint256 newBps);
+    /// @notice Emitted when the renderer contract is updated.
+    event RendererUpdated(address oldRenderer, address newRenderer);
+    /// @notice Emitted when the signer address is updated.
+    event SignerUpdated(address oldSigner, address newSigner);
 
     /// @notice Error thrown when the token is locked upon transfer.
+    /// @dev The token is Soulbound according to the ERC-5192 standard.
     error TokenLocked(uint256 tokenId);
     /// @notice Error thrown when the signature is invalid.
     error InvalidSignature();
@@ -65,8 +73,9 @@ contract StackScore is AbstractNFT, IERC5192, ReentrancyGuard {
     /// @notice Error thrown when the mint fee is insufficient.
     error InsufficientFee();
     /// @notice Error thrown when the sender is not the token owner.
+    /// @dev For example, when a non-owner tries to update a score's color palette.
     error OnlyTokenOwner();
-    /// @notice Error thrown when the timestamp is too old.
+    /// @notice Error thrown when a given timestamp is older than the last update for a score.
     error TimestampTooOld();
     /// @notice Error thrown if mint called for the second time for the same address.
     error OneTokenPerAddress();
@@ -79,6 +88,8 @@ contract StackScore is AbstractNFT, IERC5192, ReentrancyGuard {
 
     /// @notice Mint a new soulbound token.
     /// @dev Mint a new token and lock it.
+    /// @dev The mint fee is sent to the mint fee recipient.
+    /// @dev Does not require a signature, since there is no score.
     /// @param to The address to mint the token to.
     /// @return The token ID.
     function mint(address to) payable public nonReentrant returns (uint256) {
@@ -102,7 +113,7 @@ contract StackScore is AbstractNFT, IERC5192, ReentrancyGuard {
     ) payable public nonReentrant returns (uint256) {
         _assertSufficientFee();
 
-        uint256 referralAmount = msg.value * referralBps / 10000;
+        uint256 referralAmount = _getReferralAmount(msg.value);
         SafeTransferLib.safeTransferETH(mintFeeRecipient, msg.value - referralAmount);
         emit ReferralPaid(referrer, to, referralAmount);
         SafeTransferLib.safeTransferETH(referrer, referralAmount);
@@ -270,14 +281,18 @@ contract StackScore is AbstractNFT, IERC5192, ReentrancyGuard {
     /// @dev Only the owner can set the renderer contract address.
     /// @param _renderer The renderer contract address.
     function setRenderer(address _renderer) public onlyOwner {
+        address oldRenderer = address(renderer);
         renderer = StackScoreRenderer(_renderer);
+        emit RendererUpdated(oldRenderer, _renderer);
     }
 
     /// @notice Set the signer address.
     /// @dev Only the owner can set the signer address.
     /// @param _signer The signer address.
     function setSigner(address _signer) public onlyOwner {
+        address oldSigner = signer;
         signer = _signer;
+        emit SignerUpdated(oldSigner, _signer);
     }
 
     /// @notice Set the mint fee.
@@ -300,6 +315,10 @@ contract StackScore is AbstractNFT, IERC5192, ReentrancyGuard {
         address oldFeeRecipient = mintFeeRecipient;
         mintFeeRecipient = _mintFeeRecipient;
         emit MintFeeRecipientUpdated(oldFeeRecipient, mintFeeRecipient);
+    }
+
+    function _getReferralAmount(uint256 amount) internal view returns (uint256) {
+        return amount * referralBps / 10000;
     }
 
     function _assertOneTokenPerAddress(address to) internal view {

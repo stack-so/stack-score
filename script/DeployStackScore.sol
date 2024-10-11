@@ -10,9 +10,9 @@ import {DisplayType} from "src/onchain/Metadata.sol";
 contract DeployStackScore is Script {
     // Constants
     address public constant expectedOwnerAddress = 0x42c22eBD6f07FC052040137eEb3B8a1b7A38b275;
-    address public constant CONTRACT_ADDRESS = 0x555555575A6109c22C4211bF42E604F3d270ae5f;
-    bytes32 private constant SALT = 0x84a782b0ec7d9bb7baf5be44a962c41ece3137c985b2b52fe1b6fc431d70b2d0;
-    bytes32 private constant EXPECTED_CODE_HASH = 0xba66e86895ab693980db0b0c1b2fe90e5e04fe9992de2c3c29f93716584e527f;
+    address public constant CONTRACT_ADDRESS = 0x555555555C68dfEE1288c4372E8BbAF272062F4e;
+    bytes32 private constant SALT = 0x15c58a5b1e6d53b84801c46ff3f819ea0a1f902bd8246ab7fd4d68db52441994;
+    bytes32 private constant EXPECTED_CODE_HASH = 0xbd0b8beb3197c867250274b48ed6f2438be5cda669b1e508b8e5b0b994db5645;
 
     // Variables
     StackScore public token;
